@@ -1,12 +1,20 @@
-// main.js
-
 import { createApp } from 'vue'
+import { createBootstrap } from 'bootstrap-vue-next'
 import App from './App.vue'
-import router from './router' // <-- IMPORTANT: Import the router
+import router from './router'
 
-const app = createApp(App)
+import 'bootstrap/dist/css/bootstrap.css';
+import 'bootstrap-vue-next/dist/bootstrap-vue-next.css'
+// main.js
+import "bootstrap/dist/js/bootstrap.bundle.min.js";
 
-app.use(router) // <-- CRITICAL: Tell the app to use the router
+//import 'devextreme/dist/css/dx.light.css'; // You can change 'dx.light.css' to a theme of your choice
 
-app.mount('#app')
 
+
+const app = createApp(App);
+app.use(createBootstrap)
+
+app.use(router);
+
+app.mount('#app'); 
