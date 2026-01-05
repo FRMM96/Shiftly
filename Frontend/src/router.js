@@ -1,19 +1,30 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Login from './views/login.vue' 
-import Home from './views/Home.vue' // 1. Import the new page
+import SignUp from './views/signUp.vue'
+
 const routes = [
   {
     path: '/login', // <-- The URL for your page
     name: 'login',
     component: Login// <-- The component to show
   },
-  {
-    path: '/home',      // 2. Define the URL
-    name: 'Home',
-    component: Home
-  }
   // ... other routes might be here
+
+
+
+
+
+
+
+
+{
+  path: '/signup',
+  name: '/signup',
+  component: SignUp
+}
 ]
+
+
 
 const router = createRouter({
   history: createWebHistory(),
