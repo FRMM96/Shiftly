@@ -22,7 +22,6 @@ const routes = [
     name: '/Home',
     component: Home
   },
-
   {
     path: '/calendar',
     name: '/calendar',
