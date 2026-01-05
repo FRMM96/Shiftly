@@ -21,15 +21,15 @@
 
 <script>
 export default {
-  name: 'App',
-  data() {
-    return {
-      username: '',
-      password: '',
-      number: '',
-      email: ''
-    };
-  },
+    name: 'App',
+    data() {
+        return {
+            username: '',
+            password: '',
+            number: '',
+            email: ''
+        };
+    },
 
 }
 </script>
