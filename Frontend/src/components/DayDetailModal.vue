@@ -3,8 +3,8 @@ import { ref } from 'vue'
 import { format } from 'date-fns'
 
 // --- Components ---
-import ShiftCard from '@/components/business/ShiftCard.vue' // New Import
-import BaseButton from '@/components/ui/BaseButton.vue'     // New Import
+import ShiftCard from '../components/ShiftCard.vue' // New Import
+import BaseButton from '../components/BaseButton.vue'     // New Import
 
 const props = defineProps({
   isOpen: Boolean,

@@ -5,8 +5,8 @@ import { isSameDay } from 'date-fns'
 // --- Components ---
 import ShiftCalendar from '../components/ShiftCalendar.vue'
 import DayDetailModal from '../components/DayDetailModal.vue'
-import ShiftCard from '@/components/ShiftCard.vue'      // New Import
-import BaseButton from '@/components/BaseButton.vue'           // New Import
+import ShiftCard from '../components/ShiftCard.vue'      // New Import
+import BaseButton from '../components/BaseButton.vue'           // New Import
 
 // --- 1. Smart Mock Data Generator ---
 const today = new Date()
