@@ -1,5 +1,5 @@
 <script setup>
-import StatusBadge from '@/components/StatusBadge.vue'
+import StatusBadge from '../components/StatusBadge.vue'
 
 const props = defineProps({
     shift: { type: Object, required: true },
