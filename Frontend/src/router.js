@@ -6,7 +6,7 @@ import Calendar from './views/calendar.vue'
 import ManagerHome from './views/ManagerHome.vue'
 import StaffDirectory from './views/StaffDirectory.vue'
 import ApplicantReview from './views/ApplicantReview.vue'
-
+import MarketPlaceFeed from './views/MarketPlaceFeed.vue'
 const routes = [
   {
     path: '/login', // <-- The URL for your page
@@ -44,7 +44,12 @@ const routes = [
     path: '/manager/applicants',
     name: '/ApplicantReview',
     component: ApplicantReview
-  }
+  },
+  {
+    path: '/worker/marketplace',
+    name: 'Marketplace',
+    component: MarketPlaceFeed
+  },
 
 ]
 
