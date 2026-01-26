@@ -1,12 +1,13 @@
 <script setup>
 import { ref, computed } from 'vue'
-import BaseButton from '../components/BaseButton.vue'
+import BaseButton from '../components/BaseButton.vue' 
+import ManagerLayout from '../components/ManagerLayout.vue' // <--- 1. NEW IMPORT
 
 // --- Mock Data ---
 const staffList = ref([
   { id: 1, name: 'Sarah Jenkins', role: 'Chef', phone: '+46 70 123 45 67', email: 'sarah@kitchen.com', status: 'active', avatar: 'S' },
   { id: 2, name: 'Mike Thompson', role: 'Waiter', phone: '+46 70 987 65 43', email: 'mike@floor.com', status: 'active', avatar: 'M' },
-  { id: 3, name: 'Jenny Lindberg', role: 'Bartender', phone: '+46 70 555 12 34', email: 'jenny@bar.com', status: 'sick', avatar: 'J' }, // Linked to your Sick status logic
+  { id: 3, name: 'Jenny Lindberg', role: 'Bartender', phone: '+46 70 555 12 34', email: 'jenny@bar.com', status: 'sick', avatar: 'J' },
   { id: 4, name: 'Tom Hardy', role: 'Dishwasher', phone: '+46 70 111 22 33', email: 'tom@clean.com', status: 'inactive', avatar: 'T' },
 ])
 
@@ -21,7 +22,7 @@ const filteredStaff = computed(() => {
 
 // --- Actions ---
 const handleAddStaff = () => {
-  const name = prompt("Enter Staff Name:") // Simple prompt for now, connect to Modal later
+  const name = prompt("Enter Staff Name:")
   if (name) {
     staffList.value.push({
       id: Date.now(),
@@ -43,62 +44,68 @@ const handleDelete = (id) => {
 </script>
 
 <template>
-  <div class="page-container">
+  <ManagerLayout>
     
-    <header class="page-header">
-      <div>
-        <h1 class="page-title">Staff Directory</h1>
-        <p class="page-subtitle">Manage your internal team and contact details.</p>
-      </div>
-      <BaseButton variant="primary" @click="handleAddStaff">+ Add New Staff</BaseButton>
-    </header>
+    <div class="page-container">
+      
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Staff Directory</h1>
+          <p class="page-subtitle">Manage your internal team and contact details.</p>
+        </div>
+        <BaseButton variant="primary" @click="handleAddStaff">+ Add New Staff</BaseButton>
+      </header>
 
-    <div class="toolbar">
-      <div class="search-wrapper">
-        <span class="search-icon">🔍</span>
-        <input v-model="searchQuery" type="text" placeholder="Search by name or role..." class="search-input" />
+      <div class="toolbar">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input v-model="searchQuery" type="text" placeholder="Search by name or role..." class="search-input" />
+        </div>
       </div>
+
+      <div class="staff-grid">
+        <div v-for="person in filteredStaff" :key="person.id" class="staff-card">
+          
+          <div class="card-top">
+            <div class="avatar-circle">{{ person.avatar }}</div>
+            <div class="person-info">
+              <h3 class="person-name">{{ person.name }}</h3>
+              <span class="person-role">{{ person.role }}</span>
+            </div>
+            <div class="status-indicator" :class="person.status"></div>
+          </div>
+
+          <div class="card-details">
+            <div class="detail-row">
+              <span class="icon">📞</span> {{ person.phone }}
+            </div>
+            <div class="detail-row">
+              <span class="icon">✉️</span> {{ person.email }}
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <BaseButton variant="secondary" size="sm" block>Edit Profile</BaseButton>
+            <button class="icon-btn-delete" @click="handleDelete(person.id)">🗑️</button>
+          </div>
+
+        </div>
+      </div>
+
     </div>
 
-    <div class="staff-grid">
-      <div v-for="person in filteredStaff" :key="person.id" class="staff-card">
-        
-        <div class="card-top">
-          <div class="avatar-circle">{{ person.avatar }}</div>
-          <div class="person-info">
-            <h3 class="person-name">{{ person.name }}</h3>
-            <span class="person-role">{{ person.role }}</span>
-          </div>
-          <div class="status-indicator" :class="person.status"></div>
-        </div>
-
-        <div class="card-details">
-          <div class="detail-row">
-            <span class="icon">📞</span> {{ person.phone }}
-          </div>
-          <div class="detail-row">
-            <span class="icon">✉️</span> {{ person.email }}
-          </div>
-        </div>
-
-        <div class="card-actions">
-          <BaseButton variant="secondary" size="sm" block>Edit Profile</BaseButton>
-          <button class="icon-btn-delete" @click="handleDelete(person.id)">🗑️</button>
-        </div>
-
-      </div>
-    </div>
-
-  </div>
+  </ManagerLayout>
 </template>
 
 <style scoped>
 /* Page Layout */
 .page-container {
   padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  /* Removed max-width restriction so it fills the layout nicely, or keep 1200px if you prefer centered content */
+  width: 100%; 
 }
+
+/* ... Keep all your other existing CSS exactly the same ... */
 
 .page-header {
   display: flex;
