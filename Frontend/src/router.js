@@ -4,6 +4,7 @@ import SignUp from './views/signUp.vue'
 import Home from './views/Home.vue'
 import Calendar from './views/calendar.vue'
 import ManagerHome from './views/ManagerHome.vue'
+import StaffDirectory from './views/StaffDirectory.vue'
 
 const routes = [
   {
@@ -32,6 +33,11 @@ const routes = [
     path: '/ManagerHome',
     name: '/ManagerHome',
     component: ManagerHome
+  },
+  {
+    path: '/StaffDirectory',
+    name: '/StaffDirectory',
+    component: StaffDirectory
   }
 
 ]
