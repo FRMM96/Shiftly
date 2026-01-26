@@ -7,6 +7,8 @@ import ManagerHome from './views/ManagerHome.vue'
 import StaffDirectory from './views/StaffDirectory.vue'
 import ApplicantReview from './views/ApplicantReview.vue'
 import MarketPlaceFeed from './views/MarketPlaceFeed.vue'
+import CreateShift from './views/CreateShift.vue'
+
 const routes = [
   {
     path: '/login', // <-- The URL for your page
@@ -50,6 +52,11 @@ const routes = [
     name: 'Marketplace',
     component: MarketPlaceFeed
   },
+  {
+    path: '/manager/create-shift',
+    name: 'CreateShift',
+    component: CreateShift
+  }
 
 ]
 
