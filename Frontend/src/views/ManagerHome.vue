@@ -2,11 +2,12 @@
 import { ref } from 'vue'
 import { isSameDay } from 'date-fns'
 
-// --- Components ---
+// --- Imports ---
+import ManagerLayout from '../components/ManagerLayout.vue' // <--- NEW IMPORT
 import ShiftCalendar from '../components/ShiftCalendar.vue'
 import DayDetailModal from '../components/DayDetailModal.vue'
-import ShiftCard from '../components/ShiftCard.vue'      // New Import
-import BaseButton from '../components/BaseButton.vue'           // New Import
+import ShiftCard from '../components/ShiftCard.vue' 
+import BaseButton from '../components/BaseButton.vue' 
 
 // --- 1. Smart Mock Data Generator ---
 const today = new Date()
@@ -84,185 +85,72 @@ const handlePublishShift = (id) => {
 </script>
 
 <template>
-    <div class="manager-container">
+  <ManagerLayout>
+    
+    <div class="content-wrapper">
 
-        <aside class="sidebar">
-            <div class="logo">Shiftly <span class="badge">Manager</span></div>
+        <header class="header">
+            <h1>Dashboard</h1>
+            <button @click="handleCreateShift" class="btn-create">+ New Shift</button>
+        </header>
 
-            <nav class="nav-links">
-                <a href="#" class="nav-item active">Dashboard</a>
-                <a href="#" class="nav-item">Roster</a>
-                <a href="#" class="nav-item">Staff</a>
-                <a href="#" class="nav-item">Payroll</a>
-                <a href="#" class="nav-item">Settings</a>
-            </nav>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Working Now</span>
+                <span class="stat-number">{{ stats.workingNow }}</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Scheduled Today</span>
+                <span class="stat-number">{{ stats.scheduledToday }}</span>
+            </div>
+            <div class="stat-card alert-card">
+                <span class="stat-label">Issues / Open</span>
+                <span class="stat-number">{{ stats.openShifts }}</span>
+            </div>
+        </div>
 
-            <div class="user-profile">
-                <div class="avatar-circle">M</div>
-                <div class="user-info">
-                    <span class="name">Stockholm Bar</span>
-                    <span class="role">Admin</span>
+        <section v-if="shifts.some(s => s.status === 'sick')" class="section-area">
+            <h2 class="section-title text-danger">⚠️ Requires Attention</h2>
+
+            <div class="issues-list">
+                <ShiftCard v-for="shift in shifts.filter(s => s.status === 'sick')" :key="shift.id" :shift="shift">
+                    <template #actions>
+                        <BaseButton variant="danger" size="sm" @click="resolveSickIssue(shift.id)">
+                            Find Replacement
+                        </BaseButton>
+                    </template>
+                </ShiftCard>
+            </div>
+        </section>
+
+        <section class="section-area">
+            <div class="section-header">
+                <h2 class="section-title">Overview</h2>
+                <div class="legend">
+                    <span class="dot active"></span> Active
+                    <span class="dot sick"></span> Sick
+                    <span class="dot open"></span> Open
                 </div>
             </div>
-        </aside>
 
-        <main class="content">
+            <ShiftCalendar :shifts="shifts" @selectDay="handleDaySelect" />
 
-            <header class="header">
-                <h1>Dashboard</h1>
-                <button @click="handleCreateShift" class="btn-create">+ New Shift</button>
-            </header>
+            <DayDetailModal :isOpen="isModalOpen" :date="selectedDate" :shifts="selectedDayShifts"
+                @close="isModalOpen = false" @addShift="handleAddShift" @deleteShift="handleDeleteShift"
+                @publishShift="handlePublishShift" />
 
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <span class="stat-label">Working Now</span>
-                    <span class="stat-number">{{ stats.workingNow }}</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Scheduled Today</span>
-                    <span class="stat-number">{{ stats.scheduledToday }}</span>
-                </div>
-                <div class="stat-card alert-card">
-                    <span class="stat-label">Issues / Open</span>
-                    <span class="stat-number">{{ stats.openShifts }}</span>
-                </div>
-            </div>
+        </section>
 
-            <section v-if="shifts.some(s => s.status === 'sick')" class="section-area">
-                <h2 class="section-title text-danger">⚠️ Requires Attention</h2>
-
-                <div class="issues-list">
-                    <ShiftCard v-for="shift in shifts.filter(s => s.status === 'sick')" :key="shift.id" :shift="shift">
-                        <template #actions>
-                            <BaseButton variant="danger" size="sm" @click="resolveSickIssue(shift.id)">
-                                Find Replacement
-                            </BaseButton>
-                        </template>
-                    </ShiftCard>
-                </div>
-            </section>
-
-            <section class="section-area">
-                <div class="section-header">
-                    <h2 class="section-title">Overview</h2>
-                    <div class="legend">
-                        <span class="dot active"></span> Active
-                        <span class="dot sick"></span> Sick
-                        <span class="dot open"></span> Open
-                    </div>
-                </div>
-
-                <ShiftCalendar :shifts="shifts" @selectDay="handleDaySelect" />
-
-                <DayDetailModal :isOpen="isModalOpen" :date="selectedDate" :shifts="selectedDayShifts"
-                    @close="isModalOpen = false" @addShift="handleAddShift" @deleteShift="handleDeleteShift"
-                    @publishShift="handlePublishShift" />
-
-            </section>
-
-        </main>
     </div>
+    
+  </ManagerLayout>
 </template>
 
 <style scoped>
-/* --- Layout --- */
-.manager-container {
-    display: flex;
-    min-height: 100vh;
-    background-color: #f8fafc;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color: #334155;
-}
+/* 🟢 CLEANUP: Removed all sidebar/layout styles since ManagerLayout handles them */
 
-/* --- Sidebar --- */
-.sidebar {
-    width: 250px;
-    background-color: white;
-    border-right: 1px solid #e2e8f0;
-    display: flex;
-    flex-direction: column;
-    padding: 1.5rem;
-    position: fixed;
-    height: 100vh;
-}
-
-.logo {
-    font-size: 1.25rem;
-    font-weight: 800;
-    margin-bottom: 2.5rem;
-    color: #0f172a;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.badge {
-    background: #0f172a;
-    color: #ccfd52;
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    border-radius: 4px;
-    text-transform: uppercase;
-}
-
-.nav-links {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    flex: 1;
-}
-
-.nav-item {
-    text-decoration: none;
-    color: #64748b;
-    padding: 0.75rem 1rem;
-    border-radius: 8px;
-    font-weight: 500;
-    transition: all 0.2s;
-}
-
-.nav-item:hover,
-.nav-item.active {
-    background-color: #f1f5f9;
-    color: #0f172a;
-}
-
-.user-profile {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-top: 1rem;
-    border-top: 1px solid #e2e8f0;
-}
-
-.avatar-circle {
-    width: 36px;
-    height: 36px;
-    background-color: #0f172a;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-weight: bold;
-}
-
-.user-info {
-    display: flex;
-    flex-direction: column;
-    font-size: 0.85rem;
-}
-
-.role {
-    color: #94a3b8;
-    font-size: 0.75rem;
-}
-
-/* --- Main Content --- */
-.content {
-    margin-left: 250px;
-    flex: 1;
-    padding: 2rem;
+.content-wrapper {
+  padding: 2rem; /* Add padding here for the main content */
 }
 
 .header {
@@ -315,7 +203,7 @@ const handlePublishShift = (id) => {
     color: #ef4444;
 }
 
-/* --- Issues Section (Updated Styles) --- */
+/* --- Issues Section --- */
 .text-danger {
     color: #ef4444;
     margin-bottom: 1rem;
@@ -327,7 +215,6 @@ const handlePublishShift = (id) => {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    /* Adds space between multiple cards */
     margin-bottom: 2rem;
 }
 
@@ -360,15 +247,7 @@ const handlePublishShift = (id) => {
     margin-right: 5px;
 }
 
-.dot.active {
-    background: #10b981;
-}
-
-.dot.sick {
-    background: #ef4444;
-}
-
-.dot.open {
-    background: #f59e0b;
-}
+.dot.active { background: #10b981; }
+.dot.sick { background: #ef4444; }
+.dot.open { background: #f59e0b; }
 </style>

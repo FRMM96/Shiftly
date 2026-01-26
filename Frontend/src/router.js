@@ -21,8 +21,8 @@ const routes = [
   },
 
   {
-    path: '/Home',
-    name: '/Home',
+    path: '/home',
+    name: '/home',
     component: Home
   },
   {
@@ -31,17 +31,17 @@ const routes = [
     component: Calendar
   },
   {
-    path: '/ManagerHome',
+    path: '/manager',
     name: '/ManagerHome',
     component: ManagerHome
   },
   {
-    path: '/StaffDirectory',
+    path: '/manager/staff',
     name: '/StaffDirectory',
     component: StaffDirectory
   },
   {
-    path: '/ApplicantReview',
+    path: '/manager/applicants',
     name: '/ApplicantReview',
     component: ApplicantReview
   }
