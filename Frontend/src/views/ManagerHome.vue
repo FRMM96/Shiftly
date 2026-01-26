@@ -1,79 +1,73 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue' // Added computed
 import { isSameDay } from 'date-fns'
+import { useRouter } from 'vue-router'
 
 // --- Imports ---
-import ManagerLayout from '../components/ManagerLayout.vue' // <--- NEW IMPORT
+import ManagerLayout from '../components/ManagerLayout.vue'
 import ShiftCalendar from '../components/ShiftCalendar.vue'
 import DayDetailModal from '../components/DayDetailModal.vue'
-import ShiftCard from '../components/ShiftCard.vue' 
-import BaseButton from '../components/BaseButton.vue' 
+import ShiftCard from '../components/ShiftCard.vue'
+import BaseButton from '../components/BaseButton.vue'
+import { useShiftStore } from '../stores/shiftStore' // <--- 1. Import Store
 
-// --- 1. Smart Mock Data Generator ---
-const today = new Date()
-const year = today.getFullYear()
-const month = String(today.getMonth() + 1).padStart(2, '0')
+const router = useRouter()
+const store = useShiftStore() // <--- 2. Init Store
 
-const getDate = (day) => `${year}-${month}-${String(day).padStart(2, '0')}`
-
+// --- State ---
 const isModalOpen = ref(false)
 const selectedDate = ref(null)
 const selectedDayShifts = ref([])
 
-// --- 2. State ---
-const stats = ref({
-    workingNow: 4,
-    scheduledToday: 8,
-    openShifts: 1
+// --- Stats (Computed from Store) ---
+// Now these numbers will actually update when you add a shift!
+const stats = computed(() => {
+    return {
+        workingNow: 4, // Still mock for now
+        scheduledToday: store.shifts.filter(s => isSameDay(new Date(s.date), new Date())).length,
+        openShifts: store.openShifts.length
+    }
 })
 
-const shifts = ref([
-    { id: 1, name: 'Sarah J.', role: 'Chef', time: '09:00 - 17:00', date: getDate(today.getDate()), status: 'active' },
-    { id: 2, name: 'Mike T.', role: 'Waiter', time: '10:00 - 18:00', date: getDate(today.getDate()), status: 'active' },
-    { id: 3, name: 'Jenny L.', role: 'Bartender', time: '18:00 - 02:00', date: getDate(today.getDate()), status: 'sick' },
-    { id: 4, name: 'Tom H.', role: 'Chef', time: '09:00 - 17:00', date: getDate(today.getDate() + 1), status: 'active' },
-    { id: 5, name: 'Open Slot', role: 'Dishwasher', time: '18:00 - 23:00', date: getDate(today.getDate() + 2), status: 'open' },
-    { id: 6, name: 'Sarah J.', role: 'Chef', time: '09:00 - 17:00', date: getDate(today.getDate() + 5), status: 'active' },
-])
-
-// --- 3. Actions ---
+// --- Actions ---
 const handleCreateShift = () => {
-    alert("Open Modal: Create New Shift")
+    router.push('/manager/create-shift')
 }
 
 const resolveSickIssue = (shiftId) => {
-    const shift = shifts.value.find(s => s.id === shiftId)
+    // Look in the store, not local refs
+    const shift = store.shifts.find(s => s.id === shiftId)
     if (shift) {
         if (confirm(`Publish ${shift.role} shift to Shiftly Marketplace?`)) {
             shift.status = 'open'
             shift.name = 'Open Slot'
-            stats.value.openShifts++
+            // No need to update stats manually, the computed prop handles it
         }
     }
 }
 
 const handleDaySelect = (day) => {
     selectedDate.value = day
-    selectedDayShifts.value = shifts.value.filter(s => isSameDay(new Date(s.date), day))
+    // Filter from STORE shifts
+    selectedDayShifts.value = store.shifts.filter(s => isSameDay(new Date(s.date), day))
     isModalOpen.value = true
 }
 
 const handleAddShift = (newShiftData) => {
-    const year = selectedDate.value.getFullYear()
-    const month = String(selectedDate.value.getMonth() + 1).padStart(2, '0')
-    const day = String(selectedDate.value.getDate()).padStart(2, '0')
-
-    shifts.value.push({
-        id: Date.now(),
+    // This is for the modal "Quick Add" (optional, if you keep it)
+    store.addShift({
         ...newShiftData,
-        date: `${year}-${month}-${day}`
+        pay: '150 kr/h' // default
     })
-    handleDaySelect(selectedDate.value)
+    handleDaySelect(selectedDate.value) // Refresh modal
 }
 
 const handleDeleteShift = (id) => {
     if (confirm('Are you sure you want to delete this shift?')) {
-        shifts.value = shifts.value.filter(s => s.id !== id)
+        // You would need a delete action in your store, for now:
+        const index = store.shifts.findIndex(s => s.id === id)
+        if (index !== -1) store.shifts.splice(index, 1)
+
         handleDaySelect(selectedDate.value)
     }
 }
@@ -85,8 +79,7 @@ const handlePublishShift = (id) => {
 </script>
 
 <template>
-  <ManagerLayout>
-    
+    <ManagerLayout>
     <div class="content-wrapper">
 
         <header class="header">
@@ -109,11 +102,10 @@ const handlePublishShift = (id) => {
             </div>
         </div>
 
-        <section v-if="shifts.some(s => s.status === 'sick')" class="section-area">
+        <section v-if="store.shifts.some(s => s.status === 'sick')" class="section-area">
             <h2 class="section-title text-danger">⚠️ Requires Attention</h2>
-
             <div class="issues-list">
-                <ShiftCard v-for="shift in shifts.filter(s => s.status === 'sick')" :key="shift.id" :shift="shift">
+                <ShiftCard v-for="shift in store.shifts.filter(s => s.status === 'sick')" :key="shift.id" :shift="shift">
                     <template #actions>
                         <BaseButton variant="danger" size="sm" @click="resolveSickIssue(shift.id)">
                             Find Replacement
@@ -133,7 +125,7 @@ const handlePublishShift = (id) => {
                 </div>
             </div>
 
-            <ShiftCalendar :shifts="shifts" @selectDay="handleDaySelect" />
+            <ShiftCalendar :shifts="store.shifts" @selectDay="handleDaySelect" />
 
             <DayDetailModal :isOpen="isModalOpen" :date="selectedDate" :shifts="selectedDayShifts"
                 @close="isModalOpen = false" @addShift="handleAddShift" @deleteShift="handleDeleteShift"
@@ -142,7 +134,6 @@ const handlePublishShift = (id) => {
         </section>
 
     </div>
-    
   </ManagerLayout>
 </template>
 
@@ -150,7 +141,8 @@ const handlePublishShift = (id) => {
 /* 🟢 CLEANUP: Removed all sidebar/layout styles since ManagerLayout handles them */
 
 .content-wrapper {
-  padding: 2rem; /* Add padding here for the main content */
+    padding: 2rem;
+    /* Add padding here for the main content */
 }
 
 .header {
@@ -247,7 +239,15 @@ const handlePublishShift = (id) => {
     margin-right: 5px;
 }
 
-.dot.active { background: #10b981; }
-.dot.sick { background: #ef4444; }
-.dot.open { background: #f59e0b; }
+.dot.active {
+    background: #10b981;
+}
+
+.dot.sick {
+    background: #ef4444;
+}
+
+.dot.open {
+    background: #f59e0b;
+}
 </style>

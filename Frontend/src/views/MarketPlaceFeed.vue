@@ -1,24 +1,36 @@
 <script setup>
-import { ref, computed } from 'vue'
-import WorkerLayout from '../components/WorkersLayout.vue'
+import { computed } from 'vue'
+import WorkerLayout from '../components/WorkerLayout.vue' // Ensure this matches your filename
 import BaseButton from '../components/BaseButton.vue'
+import { useShiftStore } from '../stores/shiftStore'
 
-// --- Mock Gigs ---
-const gigs = ref([
-    { id: 1, business: 'Stockholm Bar', role: 'Bartender', time: '18:00 - 02:00', pay: '$180', rate: '$22/hr', date: 'Tonight', tags: ['Busy', 'Tips'], image: '🍹' },
-    { id: 2, business: 'Cafe Z', role: 'Barista', time: '07:00 - 15:00', pay: '$140', rate: '$17/hr', date: 'Tomorrow', tags: ['Morning', 'Chill'], image: '☕' },
-    { id: 3, business: 'Grand Hotel', role: 'Dishwasher', time: '19:00 - 23:00', pay: '$80', rate: '$20/hr', date: 'Fri, 28 Jan', tags: ['Urgent'], image: '🍽️' },
-])
+// 1. Init the Store
+const store = useShiftStore()
 
-const filter = ref('All')
+// 2. Compute 'gigs' from the Store
+// We use .map() to transform the Store data into the format your Card expects
+const gigs = computed(() => {
+    return store.openShifts.map(shift => ({
+        id: shift.id,
+        business: shift.business,
+        role: shift.role,
+        // Combine start and end times for the display
+        time: `${shift.startTime} - ${shift.endTime}`,
+        // The store has "150 kr/h", map it to rate
+        rate: shift.pay,
+        // Placeholder for total pay (or you can calculate it if you parse the numbers)
+        pay: 'Est. Total',
+        date: shift.date,
+        tags: ['New', 'Urgent'], // Default tags since the simple form doesn't have tags yet
+        image: shift.image
+    }))
+})
 
-// --- Actions ---
+// 3. Actions
 const handleApply = (gig) => {
     if (confirm(`Apply for ${gig.role} at ${gig.business}?`)) {
-        // In real app, this sends API request
         alert("Application Sent! The manager will review it shortly.")
-        // Remove from feed or mark as applied
-        gigs.value = gigs.value.filter(g => g.id !== gig.id)
+        // In a real app, you would call: store.applyToShift(gig.id)
     }
 }
 </script>
@@ -41,14 +53,15 @@ const handleApply = (gig) => {
             <div v-for="gig in gigs" :key="gig.id" class="gig-card">
 
                 <div class="gig-top">
-                    <div class="gig-icon">{{ gig.image }}</div>
+                    <img :src="gig.image" class="gig-icon" alt="Job" />
+
                     <div class="gig-info">
                         <h3>{{ gig.role }}</h3>
                         <span class="business-name">{{ gig.business }}</span>
                     </div>
                     <div class="gig-pay">
-                        <span class="total">{{ gig.pay }}</span>
-                        <span class="rate">{{ gig.rate }}</span>
+                        <span class="total">{{ gig.rate }}</span>
+                        <span class="rate">{{ gig.pay }}</span>
                     </div>
                 </div>
 
