@@ -2,14 +2,14 @@
 import { ref, computed } from 'vue' // Added computed
 import { isSameDay } from 'date-fns'
 import { useRouter } from 'vue-router'
-
+import { useShiftStore } from '../stores/shiftStore' // <--- 1. Import Store
 // --- Imports ---
 import ManagerLayout from '../components/ManagerLayout.vue'
 import ShiftCalendar from '../components/ShiftCalendar.vue'
 import DayDetailModal from '../components/DayDetailModal.vue'
 import ShiftCard from '../components/ShiftCard.vue'
 import BaseButton from '../components/BaseButton.vue'
-import { useShiftStore } from '../stores/shiftStore' // <--- 1. Import Store
+
 
 const router = useRouter()
 const store = useShiftStore() // <--- 2. Init Store
@@ -124,6 +124,28 @@ const handlePublishShift = (id) => {
                     <span class="dot open"></span> Open
                 </div>
             </div>
+            <section v-if="store.openShifts.length > 0" class="section-area">
+            <div class="section-header">
+                <h2 class="section-title">🚀 Live on Marketplace</h2>
+                <span class="badge-count">{{ store.openShifts.length }} active</span>
+            </div>
+
+            <div class="issues-list">
+                <ShiftCard 
+                    v-for="shift in store.openShifts" 
+                    :key="shift.id" 
+                    :shift="shift"
+                >
+                    <template #actions>
+                        <div class="action-row">
+                            <span class="applicant-count">0 Applicants</span>
+                            <BaseButton variant="secondary" size="sm">Edit</BaseButton>
+                            <BaseButton variant="danger" size="sm">Cancel</BaseButton>
+                        </div>
+                    </template>
+                </ShiftCard>
+            </div>
+        </section>
 
             <ShiftCalendar :shifts="store.shifts" @selectDay="handleDaySelect" />
 
@@ -249,5 +271,27 @@ const handlePublishShift = (id) => {
 
 .dot.open {
     background: #f59e0b;
+}
+.badge-count {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+.action-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.applicant-count {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-right: auto; /* Pushes buttons to the right */
+    font-style: italic;
 }
 </style>
