@@ -1,22 +1,18 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia' // <--- Essential
 import { createBootstrap } from 'bootstrap-vue-next'
 import App from './App.vue'
 import router from './router'
-import { createPinia } from 'pinia' // <--- Import Pinia
 
-import 'bootstrap/dist/css/bootstrap.css';
+// CSS Imports
+import 'bootstrap/dist/css/bootstrap.css'
 import 'bootstrap-vue-next/dist/bootstrap-vue-next.css'
-// main.js
-import "bootstrap/dist/js/bootstrap.bundle.min.js";
+import "bootstrap/dist/js/bootstrap.bundle.min.js"
 
-//import 'devextreme/dist/css/dx.light.css'; // You can change 'dx.light.css' to a theme of your choice
+const app = createApp(App)
 
+app.use(createPinia()) // <--- Must be before mount
+app.use(createBootstrap()) // <--- Fixed syntax with ()
+app.use(router)
 
-
-const app = createApp(App);
-app.use(createBootstrap())
-app.use(createPinia()) // <--- Use Pinia
-app.use(router);
-
-app.mount('#app'); 
-
+app.mount('#app')

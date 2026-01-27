@@ -2,9 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export const useShiftStore = defineStore('shifts', () => {
-  // 1. STATE: The Master List
+  // 1. STATE: The Master List (Initial Mock Data)
   const shifts = ref([
-    // Keep some mock data for testing
     { 
       id: 1, 
       business: 'Stockholm Bar', 
@@ -13,25 +12,24 @@ export const useShiftStore = defineStore('shifts', () => {
       endTime: '02:00', 
       pay: '180 kr/h', 
       date: '2026-01-27', 
-      status: 'open', // open, active, sick
+      status: 'open',
       image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=500&q=60' 
     }
   ])
 
-  // 2. GETTERS: Filter specific views
+  // 2. GETTERS
   const openShifts = computed(() => shifts.value.filter(s => s.status === 'open'))
   
-  // 3. ACTIONS: Modify data
+  // 3. ACTIONS
   const addShift = (newShift) => {
-    // Add default mock image/business if missing
-    const shiftWithDefaults = {
+    console.log("Store: Adding shift...", newShift) // Debug log
+    shifts.value.push({
       id: Date.now(),
-      status: 'open',
-      business: 'My Restaurant', // In a real app, this comes from the logged-in user
-      image: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=500&q=60',
+      status: 'open', // Force status to open so it shows in feed
+      business: 'Stockholm Bar', // Default business
+      image: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=500&q=60', // Default image
       ...newShift
-    }
-    shifts.value.push(shiftWithDefaults)
+    })
   }
 
   return { shifts, openShifts, addShift }

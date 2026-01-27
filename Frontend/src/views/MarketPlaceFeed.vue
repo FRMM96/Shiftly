@@ -156,11 +156,10 @@ const handleApply = (gig) => {
     background: #f9fafb;
     width: 50px;
     height: 50px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    object-fit: cover;
     border-radius: 12px;
     margin-right: 12px;
+    display: block;
 }
 
 .gig-info {

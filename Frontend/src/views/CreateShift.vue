@@ -23,7 +23,9 @@ const handleSubmit = () => {
         date: form.value.date,
         startTime: form.value.startTime,
         endTime: form.value.endTime,
-        pay: form.value.pay + ' kr/h'
+        pay: form.value.pay + ' kr/h',
+        status: 'open',
+        image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=500&q=60'
     })
 
     // 2. Redirect back to Dashboard
