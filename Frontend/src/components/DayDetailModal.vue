@@ -11,7 +11,9 @@ const props = defineProps(['isOpen', 'date', 'shifts'])
 const emit = defineEmits(['close', 'addShift', 'deleteShift', 'publishShift'])
 
 const staffStore = useStaffStore() // <--- Init Store
-
+// --- Time Options ---
+const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const minutes = ['00', '15', '30', '45']
 // State for the "Add Shift" form
 const isAdding = ref(false)
 
@@ -19,8 +21,10 @@ const isAdding = ref(false)
 const newShift = ref({
   workerId: '', // We store the ID
   role: '',
-  startTime: '09:00',
-  endTime: '17:00'
+  startHour: '09',
+  startMinute: '00',
+  endHour: '17',
+  endMinute: '00'
 })
 
 // Actions
@@ -28,7 +32,7 @@ const startAdd = () => isAdding.value = true
 const cancelAdd = () => {
   isAdding.value = false
   // Reset
-  newShift.value = { workerId: '', role: '', startTime: '09:00', endTime: '17:00' }
+  newShift.value = { workerId: '', role: '', startHour: '09', startMinute: '00', endHour: '17', endMinute: '00' }
 }
 
 // Auto-fill Role when Worker is selected
@@ -43,10 +47,14 @@ const submitShift = () => {
   // Find the full name based on the ID
   const worker = staffStore.staffList.find(p => p.id === newShift.value.workerId)
 
+  // Combine Time
+  const startTime = `${newShift.value.startHour}:${newShift.value.startMinute}`
+  const endTime = `${newShift.value.endHour}:${newShift.value.endMinute}`
+
   emit('addShift', {
     name: worker ? worker.name : 'Unassigned',
     role: newShift.value.role,
-    time: `${newShift.value.startTime} - ${newShift.value.endTime}`,
+    time: `${startTime} - ${endTime}`,
     status: 'active' // Default to active since we assigned a worker
   })
 
@@ -69,8 +77,7 @@ const submitShift = () => {
       <div class="shift-list">
         <ShiftCard v-for="shift in shifts" :key="shift.id" :shift="shift" class="mb-3">
           <template #actions>
-            <BaseButton v-if="shift.status === 'sick'" variant="danger" size="sm"
-              @click="$emit('publishShift', shift.id)">
+            <BaseButton v-if="shift.status === 'sick'" variant="danger" size="sm" @click="$emit('publishShift', shift.id)">
               Find Replacement
             </BaseButton>
             <BaseButton variant="ghost" size="sm" @click="$emit('deleteShift', shift.id)">
@@ -85,10 +92,9 @@ const submitShift = () => {
       </div>
 
       <div class="add-section">
-
         <div v-if="isAdding" class="add-form">
           <h4 class="form-title">Assign Staff</h4>
-
+          
           <div class="form-group">
             <select v-model="newShift.workerId" @change="handleWorkerSelect" class="input" required>
               <option value="" disabled>Select Staff Member</option>
@@ -103,9 +109,27 @@ const submitShift = () => {
           </div>
 
           <div class="form-group time-row">
-            <input type="time" v-model="newShift.startTime" class="input" />
+            <div class="time-picker">
+               <select v-model="newShift.startHour" class="input time-select">
+                   <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
+               </select>
+               <span class="colon">:</span>
+               <select v-model="newShift.startMinute" class="input time-select">
+                   <option v-for="m in minutes" :key="m" :value="m">{{ m }}</option>
+               </select>
+            </div>
+            
             <span class="to">to</span>
-            <input type="time" v-model="newShift.endTime" class="input" />
+            
+            <div class="time-picker">
+               <select v-model="newShift.endHour" class="input time-select">
+                   <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
+               </select>
+               <span class="colon">:</span>
+               <select v-model="newShift.endMinute" class="input time-select">
+                   <option v-for="m in minutes" :key="m" :value="m">{{ m }}</option>
+               </select>
+            </div>
           </div>
 
           <div class="form-actions">
@@ -250,4 +274,10 @@ const submitShift = () => {
   gap: 10px;
   margin-top: 5px;
 }
+.time-row { display: flex; align-items: center; justify-content: space-between; }
+.time-picker { display: flex; align-items: center; gap: 2px; }
+.time-select { width: 60px; text-align: center; padding: 10px 5px; cursor: pointer; }
+.colon { font-weight: bold; margin: 0 2px; }
+.to { color: #64748b; font-size: 0.9rem; margin: 0 10px; }
+
 </style>

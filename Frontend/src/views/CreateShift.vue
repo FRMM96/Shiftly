@@ -8,15 +8,26 @@ import BaseButton from '../components/BaseButton.vue' // Using your standard but
 const router = useRouter()
 const store = useShiftStore()
 
+// --- Time Options ---
+const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const minutes = ['00', '15', '30', '45'] // 15 min intervals are easier to choose
+
 const form = ref({
     role: '',
     date: '',
-    startTime: '',
-    endTime: '',
+    // Default Start: 09:00
+    startHour: '09',
+    startMinute: '00',
+    // Default End: 17:00
+    endHour: '17',
+    endMinute: '00',
     pay: ''
 })
 
 const handleSubmit = () => {
+    // 1. Combine the separate time parts into HH:MM strings
+    const startTime = `${form.value.startHour}:${form.value.startMinute}`
+    const endTime = `${form.value.endHour}:${form.value.endMinute}`
     // 1. Add to global store
     store.addShift({
         role: form.value.role,
@@ -35,9 +46,8 @@ const handleSubmit = () => {
 </script>
 
 <template>
-    <ManagerLayout>
+   <ManagerLayout>
         <div class="page-container">
-
             <header class="page-header">
                 <h1 class="page-title">Post New Shift</h1>
                 <p class="page-subtitle">Fill in the details to publish a gig to the marketplace.</p>
@@ -45,7 +55,7 @@ const handleSubmit = () => {
 
             <div class="form-card">
                 <form @submit.prevent="handleSubmit" class="shift-form">
-
+                    
                     <div class="form-group">
                         <label>Role Needed</label>
                         <select v-model="form.role" class="input" required>
@@ -65,12 +75,29 @@ const handleSubmit = () => {
 
                     <div class="row">
                         <div class="form-group">
-                            <label>Start Time</label>
-                            <input type="time" v-model="form.startTime" class="input" required />
+                            <label>Start Time (24h)</label>
+                            <div class="time-picker">
+                                <select v-model="form.startHour" class="input time-select">
+                                    <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
+                                </select>
+                                <span class="colon">:</span>
+                                <select v-model="form.startMinute" class="input time-select">
+                                    <option v-for="m in minutes" :key="m" :value="m">{{ m }}</option>
+                                </select>
+                            </div>
                         </div>
+
                         <div class="form-group">
-                            <label>End Time</label>
-                            <input type="time" v-model="form.endTime" class="input" required />
+                            <label>End Time (24h)</label>
+                            <div class="time-picker">
+                                <select v-model="form.endHour" class="input time-select">
+                                    <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
+                                </select>
+                                <span class="colon">:</span>
+                                <select v-model="form.endMinute" class="input time-select">
+                                    <option v-for="m in minutes" :key="m" :value="m">{{ m }}</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -80,14 +107,10 @@ const handleSubmit = () => {
                     </div>
 
                     <div class="form-actions">
-                        <BaseButton type="submit" variant="primary" block size="lg">
-                            Publish Shift
-                        </BaseButton>
+                        <BaseButton type="submit" variant="primary" block size="lg">Publish Shift</BaseButton>
                     </div>
-
                 </form>
             </div>
-
         </div>
     </ManagerLayout>
 </template>
@@ -175,5 +198,24 @@ label {
 
 .form-actions {
     margin-top: 1rem;
+}
+
+/* NEW STYLES FOR TIME PICKER */
+.time-picker {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.time-select {
+    text-align: center;
+    appearance: none;
+    /* Removes default arrow on some browsers for cleaner look */
+    cursor: pointer;
+}
+
+.colon {
+    font-weight: bold;
+    color: #334155;
 }
 </style>
