@@ -19,7 +19,9 @@ export const useShiftStore = defineStore('shifts', () => {
 
   // 2. GETTERS
   const openShifts = computed(() => shifts.value.filter(s => s.status === 'open'))
-  
+  // Helper to find specific shift
+  const getShiftById = (id) => shifts.value.find(s => s.id == id)
+
   // 3. ACTIONS
   const addShift = (newShift) => {
     console.log("Store: Adding shift...", newShift) // Debug log
@@ -31,6 +33,19 @@ export const useShiftStore = defineStore('shifts', () => {
       ...newShift
     })
   }
+  //  Update Logic
+  const updateShift = (updatedShift) => {
+    const index = shifts.value.findIndex(s => s.id === updatedShift.id)
+    if (index !== -1) {
+      // Merge existing data with updates
+      shifts.value[index] = { ...shifts.value[index], ...updatedShift }
+    }
+  }
 
-  return { shifts, openShifts, addShift }
+  // Delete Logic
+  const deleteShift = (id) => {
+    shifts.value = shifts.value.filter(s => s.id !== id)
+  }
+
+  return { shifts, openShifts, getShiftById, addShift, updateShift, deleteShift }
 })

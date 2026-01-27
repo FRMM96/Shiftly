@@ -53,7 +53,7 @@ const routes = [
     component: MarketPlaceFeed
   },
   {
-    path: '/manager/create-shift',
+    path: '/manager/shift/:id?',
     name: 'CreateShift',
     component: CreateShift
   }

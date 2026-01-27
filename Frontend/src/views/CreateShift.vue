@@ -1,61 +1,109 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useShiftStore } from '../stores/shiftStore'
 import ManagerLayout from '../components/ManagerLayout.vue'
-import BaseButton from '../components/BaseButton.vue' // Using your standard button
+import BaseButton from '../components/BaseButton.vue'
 
 const router = useRouter()
+const route = useRoute()
 const store = useShiftStore()
 
-// --- Time Options ---
-const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
-const minutes = ['00', '15', '30', '45'] // 15 min intervals are easier to choose
+// 1. Check if we are editing (is there an ID in the URL?)
+const isEditing = computed(() => !!route.params.id)
+const shiftId = route.params.id
 
+// Time Options for Dropdowns
+const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const minutes = ['00', '15', '30', '45']
+
+// Form State
 const form = ref({
     role: '',
     date: '',
-    // Default Start: 09:00
     startHour: '09',
     startMinute: '00',
-    // Default End: 17:00
     endHour: '17',
     endMinute: '00',
     pay: ''
 })
 
+// 2. Load Data if Editing
+onMounted(() => {
+    if (isEditing.value) {
+        const existingShift = store.getShiftById(shiftId)
+        if (existingShift) {
+            // Split "09:00" into "09" and "00"
+            const [startH, startM] = existingShift.startTime.split(':')
+            const [endH, endM] = existingShift.endTime.split(':')
+
+            form.value = {
+                role: existingShift.role,
+                date: existingShift.date,
+                startHour: startH,
+                startMinute: startM,
+                endHour: endH,
+                endMinute: endM,
+                // Remove ' kr/h' text to show just the number
+                pay: parseInt(existingShift.pay)
+            }
+        }
+    }
+})
+
+// 3. Handle Submit (Create or Update)
 const handleSubmit = () => {
-    // 1. Combine the separate time parts into HH:MM strings
-    const startTime = `${form.value.startHour}:${form.value.startMinute}`
-    const endTime = `${form.value.endHour}:${form.value.endMinute}`
-    // 1. Add to global store
-    store.addShift({
+    const shiftData = {
         role: form.value.role,
         date: form.value.date,
-        startTime: form.value.startTime,
-        endTime: form.value.endTime,
+        // Combine dropdowns into time strings
+        startTime: `${form.value.startHour}:${form.value.startMinute}`,
+        endTime: `${form.value.endHour}:${form.value.endMinute}`,
         pay: form.value.pay + ' kr/h',
-        status: 'open',
-        image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=500&q=60'
-    })
+        status: 'open'
+    }
 
-    // 2. Redirect back to Dashboard
-    alert('Shift Published to Marketplace!')
+    if (isEditing.value) {
+        // 🟢 UPDATE Existing
+        store.updateShift({ id: Number(shiftId), ...shiftData })
+        alert('Shift Updated!')
+    } else {
+        // 🟢 CREATE New
+        store.addShift({
+            ...shiftData,
+            // Add a default image for new shifts
+            image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=500&q=60'
+        })
+        alert('Shift Published!')
+    }
+    // Redirect back to Manager Dashboard
     router.push('/manager')
+}
+
+// 4. Handle Delete
+const handleDelete = () => {
+    if (confirm("Delete this shift permanently?")) {
+        store.deleteShift(Number(shiftId))
+        router.push('/manager')
+    }
 }
 </script>
 
 <template>
-   <ManagerLayout>
+    <ManagerLayout>
         <div class="page-container">
+
             <header class="page-header">
-                <h1 class="page-title">Post New Shift</h1>
-                <p class="page-subtitle">Fill in the details to publish a gig to the marketplace.</p>
+                <h1 class="page-title">{{ isEditing ? 'Edit Shift' : 'Post New Shift' }}</h1>
+
+                <BaseButton v-if="isEditing" variant="danger" size="sm" @click="handleDelete">
+                    Delete Shift
+                </BaseButton>
             </header>
 
             <div class="form-card">
                 <form @submit.prevent="handleSubmit" class="shift-form">
-                    
+
                     <div class="form-group">
                         <label>Role Needed</label>
                         <select v-model="form.role" class="input" required>
@@ -107,8 +155,11 @@ const handleSubmit = () => {
                     </div>
 
                     <div class="form-actions">
-                        <BaseButton type="submit" variant="primary" block size="lg">Publish Shift</BaseButton>
+                        <BaseButton type="submit" variant="primary" block size="lg">
+                            {{ isEditing ? 'Save Changes' : 'Publish Shift' }}
+                        </BaseButton>
                     </div>
+
                 </form>
             </div>
         </div>
@@ -119,28 +170,25 @@ const handleSubmit = () => {
 .page-container {
     padding: 2rem;
     max-width: 800px;
-    /* Limits width for readability */
     margin: 0 auto;
 }
 
-/* Header Styles matching other views */
+/* Header */
 .page-header {
     margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .page-title {
     font-size: 1.8rem;
     font-weight: 800;
     color: #0f172a;
-    margin: 0 0 5px 0;
+    margin: 0;
 }
 
-.page-subtitle {
-    color: #64748b;
-    font-size: 1rem;
-}
-
-/* Form Card Styling */
+/* Form Card */
 .form-card {
     background: white;
     border: 1px solid #e2e8f0;
@@ -155,6 +203,7 @@ const handleSubmit = () => {
     gap: 1.5rem;
 }
 
+/* Inputs */
 .form-group {
     display: flex;
     flex-direction: column;
@@ -176,7 +225,6 @@ label {
     color: #334155;
 }
 
-/* Standard Input Styling */
 .input {
     padding: 10px 12px;
     border: 1px solid #cbd5e1;
@@ -184,10 +232,8 @@ label {
     font-size: 0.95rem;
     color: #0f172a;
     background-color: white;
-    transition: border-color 0.2s, box-shadow 0.2s;
     width: 100%;
     box-sizing: border-box;
-    /* Ensures padding doesn't break width */
 }
 
 .input:focus {
@@ -200,7 +246,7 @@ label {
     margin-top: 1rem;
 }
 
-/* NEW STYLES FOR TIME PICKER */
+/* Time Picker Styles */
 .time-picker {
     display: flex;
     align-items: center;
@@ -209,8 +255,6 @@ label {
 
 .time-select {
     text-align: center;
-    appearance: none;
-    /* Removes default arrow on some browsers for cleaner look */
     cursor: pointer;
 }
 
