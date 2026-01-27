@@ -54,12 +54,25 @@ const handleDaySelect = (day) => {
 }
 
 const handleAddShift = (newShiftData) => {
-    // This is for the modal "Quick Add" (optional, if you keep it)
+    // 1. Get the date string from the currently selected date
+    // We need to format the Date object into 'YYYY-MM-DD' so the store and calendar recognize it
+    const dateObj = new Date(selectedDate.value)
+    const year = dateObj.getFullYear()
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+    const day = String(dateObj.getDate()).padStart(2, '0')
+    const formattedDate = `${year}-${month}-${day}`
+
+    // 2. Add to store with the Date included
     store.addShift({
         ...newShiftData,
-        pay: '150 kr/h' // default
+        date: formattedDate, // <--- CRITICAL FIX: The calendar needs this!
+        pay: '150 kr/h', 
+        status: 'active',    // <--- CRITICAL FIX: Added quotes around 'active'
+        image: 'https://ui-avatars.com/api/?name=' + newShiftData.name
     })
-    handleDaySelect(selectedDate.value) // Refresh modal
+
+    // 3. Refresh the modal list immediately
+    handleDaySelect(selectedDate.value) 
 }
 
 const handleDeleteShift = (id) => {
