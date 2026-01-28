@@ -8,6 +8,7 @@ import StaffDirectory from './views/StaffDirectory.vue'
 import ApplicantReview from './views/ApplicantReview.vue'
 import MarketPlaceFeed from './views/MarketPlaceFeed.vue'
 import CreateShift from './views/CreateShift.vue'
+import WorkerProfile from './views/workerProfile.vue'
 
 const routes = [
   {
@@ -56,6 +57,11 @@ const routes = [
     path: '/manager/shift/:id?',
     name: 'CreateShift',
     component: CreateShift
+  }, 
+  { 
+    path: '/worker/profile', 
+    name: 'WorkerProfile', 
+    component: WorkerProfile 
   }
 
 ]
