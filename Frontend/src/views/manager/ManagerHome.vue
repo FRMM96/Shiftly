@@ -2,13 +2,13 @@
 import { ref, computed } from 'vue' // Added computed
 import { isSameDay } from 'date-fns'
 import { useRouter } from 'vue-router'
-import { useShiftStore } from '../stores/shiftStore' // <--- 1. Import Store
+import { useShiftStore } from '../../stores/shiftStore' // <--- 1. Import Store
 // --- Imports ---
-import ManagerLayout from '../components/ManagerLayout.vue'
-import ShiftCalendar from '../components/ShiftCalendar.vue'
-import DayDetailModal from '../components/DayDetailModal.vue'
-import ShiftCard from '../components/ShiftCard.vue'
-import BaseButton from '../components/BaseButton.vue'
+import ManagerLayout from '../../components/manager/ManagerLayout.vue'
+import ShiftCalendar from '../../components/manager/ShiftCalendar.vue'
+import DayDetailModal from '../../components/manager/DayDetailModal.vue'
+import ShiftCard from '../../components/shared/ShiftCard.vue'
+import BaseButton from '../../components/shared/BaseButton.vue'
 
 
 const router = useRouter()

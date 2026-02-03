@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
-import BaseButton from '../components/BaseButton.vue' 
-import ManagerLayout from '../components/ManagerLayout.vue' // <--- 1. NEW IMPORT
+import BaseButton from '../../components/shared/BaseButton.vue' 
+import ManagerLayout from '../../components/manager/ManagerLayout.vue' // <--- 1. NEW IMPORT
 
 // --- Mock Data ---
 const staffList = ref([

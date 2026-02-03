@@ -1,76 +1,94 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
+// 1. PUBLIC VIEWS (Go up one level to 'views')
 import Login from './views/login.vue' 
 import SignUp from './views/signUp.vue'
 import Home from './views/Home.vue'
-import Calendar from './views/calendar.vue'
-import ManagerHome from './views/ManagerHome.vue'
-import StaffDirectory from './views/StaffDirectory.vue'
-import ApplicantReview from './views/ApplicantReview.vue'
-import MarketPlaceFeed from './views/MarketPlaceFeed.vue'
-import CreateShift from './views/CreateShift.vue'
-import WorkerProfile from './views/workerProfile.vue'
+
+// 2. MANAGER VIEWS (Inside 'views/manager/')
+import ManagerHome from './views/manager/ManagerHome.vue'
+import StaffDirectory from './views/manager/StaffDirectory.vue'
+import ApplicantReview from './views/manager/ApplicantReview.vue'
+import CreateShift from './views/manager/CreateShift.vue'
+import ManagerCalendar from './views/manager/calendar.vue' 
+
+// 3. WORKER VIEWS (Inside 'views/worker/')
+import WorkerHome from './views/worker/WorkerHome.vue'
+import MarketPlaceFeed from './views/worker/MarketPlaceFeed.vue'
+import WorkerProfile from './views/worker/WorkerProfile.vue'
 
 const routes = [
+  // --- Public Routes ---
   {
-    path: '/login', // <-- The URL for your page
-    name: 'login',
-    component: Login// <-- The component to show
+    path: '/', 
+    name: 'root',
+    redirect: '/home'
   },
-  
+  {
+    path: '/login',
+    name: 'login',
+    component: Login
+  },
   {
     path: '/signup',
-    name: '/signup',
+    name: 'signup',
     component: SignUp
   },
-
   {
     path: '/home',
-    name: '/home',
+    name: 'home',
     component: Home
   },
-  {
-    path: '/calendar',
-    name: '/calendar',
-    component: Calendar
-  },
+
+  // --- Manager Routes ---
   {
     path: '/manager',
-    name: '/ManagerHome',
+    name: 'ManagerHome',
     component: ManagerHome
   },
   {
+    path: '/calendar', 
+    name: 'ManagerCalendar',
+    component: ManagerCalendar
+  },
+  {
     path: '/manager/staff',
-    name: '/StaffDirectory',
+    name: 'StaffDirectory',
     component: StaffDirectory
   },
   {
     path: '/manager/applicants',
-    name: '/ApplicantReview',
+    name: 'ApplicantReview',
     component: ApplicantReview
   },
+  {
+    path: '/manager/shift/:id?', 
+    name: 'CreateShift',
+    component: CreateShift
+  },
+
+  // --- Worker Routes ---
+  {
+    path: '/worker',
+    name: 'WorkerHome',
+    component: WorkerHome // The Dashboard
+  },
+  
   {
     path: '/worker/marketplace',
     name: 'Marketplace',
     component: MarketPlaceFeed
   },
   {
-    path: '/manager/shift/:id?',
-    name: 'CreateShift',
-    component: CreateShift
-  }, 
-  { 
-    path: '/worker/profile', 
-    name: 'WorkerProfile', 
-    component: WorkerProfile 
+    path: '/worker/profile',
+    name: 'WorkerProfile',
+    component: WorkerProfile
   }
-
 ]
-
-
 
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
 
-export default router  
+export default router

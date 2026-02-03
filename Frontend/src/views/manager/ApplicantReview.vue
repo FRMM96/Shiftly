@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
-import BaseButton from '../components/BaseButton.vue'
-import ManagerLayout from '../components/ManagerLayout.vue'
+import BaseButton from '../../components/shared/BaseButton.vue'
+import ManagerLayout from '../../components/manager/ManagerLayout.vue'
 //import StatusBadge from '../components/StatusBadge.vue'
 
 // --- Mock Data: Open Shifts ---
