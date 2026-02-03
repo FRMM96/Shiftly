@@ -8,7 +8,7 @@ const isActive = (path) => route.path === path
 
 <template>
     <aside class="sidebar">
-        <div class="logo">Shiftly <span class="badge">Manager</span></div>
+        <div class="logo">Radix <span class="badge">Manager</span></div>
 
         <nav class="nav-links">
             <router-link to="/manager" class="nav-item" :class="{ active: isActive('/manager') }">

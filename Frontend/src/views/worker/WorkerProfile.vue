@@ -1,8 +1,8 @@
 <script setup>
 import { ref } from 'vue'
-import WorkerLayout from '../components/WorkerLayout.vue'
-import BaseButton from '../components/BaseButton.vue'
-import { useUserStore } from '../stores/userStore'
+import WorkerLayout from '../../components/worker/WorkerLayout.vue'
+import BaseButton from '../../components/shared/BaseButton.vue'
+import { useUserStore } from '../../stores/userStore'
 
 const userStore = useUserStore()
 

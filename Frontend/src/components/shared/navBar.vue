@@ -1,7 +1,7 @@
 <template>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
         <!-- Brand -->
-        <a class="navbar-brand fw-bold" href="#">Shiftly</a>
+        <a class="navbar-brand fw-bold" href="#">Radix</a>
 
         <!-- Toggle button -->
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar"

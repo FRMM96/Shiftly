@@ -1,11 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import { format } from 'date-fns'
-import { useStaffStore } from '../stores/staffStore' // <--- Import Staff Store
+import { useStaffStore } from '../../stores/staffStore' // <--- Import Staff Store
 
 // Components
-import BaseButton from './BaseButton.vue'
-import ShiftCard from './ShiftCard.vue'
+import BaseButton from '../shared/BaseButton.vue'
+import ShiftCard from '../shared/ShiftCard.vue'
 
 const props = defineProps(['isOpen', 'date', 'shifts'])
 const emit = defineEmits(['close', 'addShift', 'deleteShift', 'publishShift'])

@@ -1,9 +1,9 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useShiftStore } from '../stores/shiftStore'
-import ManagerLayout from '../components/ManagerLayout.vue'
-import BaseButton from '../components/BaseButton.vue'
+import { useShiftStore } from '../../stores/shiftStore'
+import ManagerLayout from '../../components/manager/ManagerLayout.vue'
+import BaseButton from '../../components/shared/BaseButton.vue'
 
 const router = useRouter()
 const route = useRoute()

@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useUserStore } from './userStore'
 
 export const useShiftStore = defineStore('shifts', () => {
-  // 1. STATE: The Master List (Initial Mock Data)
+  // 1. STATE
   const shifts = ref([
     { 
       id: 1, 
@@ -13,39 +14,85 @@ export const useShiftStore = defineStore('shifts', () => {
       pay: '180 kr/h', 
       date: '2026-01-27', 
       status: 'open',
-      image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=500&q=60' 
+      image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=500&q=60',
+      applicants: [] // <--- CRITICAL: Must initialize this to avoid crashes
     }
   ])
 
   // 2. GETTERS
   const openShifts = computed(() => shifts.value.filter(s => s.status === 'open'))
-  // Helper to find specific shift
+  
   const getShiftById = (id) => shifts.value.find(s => s.id == id)
 
+  // SAFE Getter: Finds shifts the current user applied to
+  const myApplications = computed(() => {
+    const userStore = useUserStore()
+    if (!userStore.user) return []
+    
+    return shifts.value.filter(shift => {
+      // Safety check: Does the array exist?
+      if (!shift.applicants) return false
+      
+      // Check if user is in the list
+      return shift.applicants.some(applicant => applicant.email === userStore.user.email)
+    })
+  })
+
   // 3. ACTIONS
+  
+  // --- Manager Actions ---
   const addShift = (newShift) => {
-    console.log("Store: Adding shift...", newShift) // Debug log
     shifts.value.push({
       id: Date.now(),
-      status: 'open', // Force status to open so it shows in feed
-      business: 'Stockholm Bar', // Default business
-      image: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=500&q=60', // Default image
+      status: 'open',
+      business: 'Stockholm Bar',
+      image: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=500&q=60',
+      applicants: [], // <--- Initialize empty array for new shifts
       ...newShift
     })
   }
-  //  Update Logic
+
   const updateShift = (updatedShift) => {
     const index = shifts.value.findIndex(s => s.id === updatedShift.id)
     if (index !== -1) {
-      // Merge existing data with updates
       shifts.value[index] = { ...shifts.value[index], ...updatedShift }
     }
   }
 
-  // Delete Logic
   const deleteShift = (id) => {
     shifts.value = shifts.value.filter(s => s.id !== id)
   }
 
-  return { shifts, openShifts, getShiftById, addShift, updateShift, deleteShift }
+  // --- Worker Actions ---
+  const applyToShift = (shiftId, workerProfile) => {
+    const shift = shifts.value.find(s => s.id === shiftId)
+    
+    if (shift) {
+        // Ensure array exists
+        if (!shift.applicants) shift.applicants = []
+        
+        // Check for duplicates
+        const exists = shift.applicants.find(a => a.email === workerProfile.email)
+        
+        if (!exists) {
+            shift.applicants.push({
+                ...workerProfile,
+                appliedAt: new Date().toLocaleDateString(),
+                status: 'pending'
+            })
+        }
+    }
+  }
+
+  // 4. RETURN EVERYTHING
+  return { 
+    shifts, 
+    openShifts, 
+    getShiftById, 
+    myApplications, // <--- Added
+    addShift, 
+    updateShift, 
+    deleteShift,
+    applyToShift    // <--- Added
+  }
 })
