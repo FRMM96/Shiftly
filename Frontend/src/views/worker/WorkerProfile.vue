@@ -94,6 +94,8 @@ const toggleSkill = (skill) => {
     border: 1px solid #f3f4f6;
     margin-bottom: 2rem;
     display: flex;
+    max-width: 800px;
+    margin: 0 auto;
     flex-direction: column;
     gap: 1.25rem;
 }

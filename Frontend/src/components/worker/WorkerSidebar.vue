@@ -2,14 +2,7 @@
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
-
-// Helper to check active state
-// We use 'starts with' for the dashboard so it stays active if you add sub-routes later
-const isActive = (path) => {
-    if (path === '/worker' && route.path === '/worker') return true
-    if (path !== '/worker' && route.path.startsWith(path)) return true
-    return false
-}
+const isActive = (path) => route.path === path || (path !== '/worker' && route.path.startsWith(path))
 </script>
 
 <template>
@@ -17,45 +10,39 @@ const isActive = (path) => {
         <div class="logo">Shiftly <span class="badge">Worker</span></div>
 
         <nav class="nav-links">
-            
             <router-link to="/worker" class="nav-item" :class="{ active: isActive('/worker') }">
-                📅 Dashboard
+                Dashboard
             </router-link>
 
             <router-link to="/worker/marketplace" class="nav-item" :class="{ active: isActive('/worker/marketplace') }">
-                🔍 Find Work
+                Find Work
             </router-link>
 
             <router-link to="/worker/profile" class="nav-item" :class="{ active: isActive('/worker/profile') }">
-                👤 Profile
+                Profile
             </router-link>
-
         </nav>
     </aside>
 </template>
 
 <style scoped>
 .sidebar {
-    width: 260px;
-    background: white;
+    width: 250px;
+    background-color: white;
     border-right: 1px solid #e2e8f0;
     display: flex;
     flex-direction: column;
     padding: 1.5rem;
-    height: 100vh; /* Fixed height */
-    position: fixed; /* Keeps it stuck to the left */
-    top: 0;
-    left: 0;
-    z-index: 50;
+    position: fixed;
+    height: 100vh;
+    z-index: 100;
 }
 
 .logo {
     font-size: 1.25rem;
     font-weight: 800;
-    margin-bottom: 2rem;
+    margin-bottom: 2.5rem;
     color: #0f172a;
-    display: flex;
-    align-items: center;
 }
 
 .badge {
@@ -64,8 +51,8 @@ const isActive = (path) => {
     font-size: 0.7rem;
     padding: 2px 6px;
     border-radius: 4px;
-    margin-left: 8px;
     text-transform: uppercase;
+    margin-left: 5px;
 }
 
 .nav-links {
@@ -79,11 +66,9 @@ const isActive = (path) => {
     color: #64748b;
     padding: 0.75rem 1rem;
     border-radius: 8px;
-    font-weight: 600;
+    font-weight: 500;
     transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    display: block;
 }
 
 .nav-item:hover,
