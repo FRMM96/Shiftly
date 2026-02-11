@@ -8,7 +8,7 @@ import BaseButton from '../shared/BaseButton.vue'
 import ShiftCard from '../shared/ShiftCard.vue'
 
 const props = defineProps(['isOpen', 'date', 'shifts'])
-const emit = defineEmits(['close', 'addShift', 'deleteShift', 'publishShift'])
+const emit = defineEmits(['close', 'addShift', 'deleteShift', 'publishShift', 'updateShift'])
 
 const staffStore = useStaffStore() // <--- Init Store
 // --- Time Options ---
@@ -16,6 +16,8 @@ const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const minutes = ['00', '15', '30', '45']
 // State for the "Add Shift" form
 const isAdding = ref(false)
+const isEditing = ref(false)
+const editingShiftId = ref(null)
 
 // Form Data
 const newShift = ref({
@@ -28,11 +30,45 @@ const newShift = ref({
 })
 
 // Actions
-const startAdd = () => isAdding.value = true
+const startAdd = () => {
+  isAdding.value = true
+  isEditing.value = false
+  editingShiftId.value = null
+  // Reset form
+  newShift.value = { workerId: '', role: '', startHour: '09', startMinute: '00', endHour: '17', endMinute: '00' }
+}
+
 const cancelAdd = () => {
   isAdding.value = false
+  isEditing.value = false
+  editingShiftId.value = null
   // Reset
   newShift.value = { workerId: '', role: '', startHour: '09', startMinute: '00', endHour: '17', endMinute: '00' }
+}
+
+const editShift = (shift) => {
+  isAdding.value = true
+  isEditing.value = true
+  editingShiftId.value = shift.id
+  
+  // Find worker ID based on name (reverse lookup since we only have name in shift)
+  // Ideally shift should store workerId, but for now we look up by name
+  const worker = staffStore.staffList.find(p => p.name === shift.name)
+  const workerId = worker ? worker.id : ''
+
+  // Parse time range "09:00 - 17:00"
+  const [start, end] = shift.time.split(' - ')
+  const [sHour, sMinute] = start.split(':')
+  const [eHour, eMinute] = end.split(':')
+
+  newShift.value = {
+    workerId: workerId,
+    role: shift.role,
+    startHour: sHour,
+    startMinute: sMinute,
+    endHour: eHour,
+    endMinute: eMinute
+  }
 }
 
 // Auto-fill Role when Worker is selected
@@ -50,13 +86,23 @@ const submitShift = () => {
   // Combine Time
   const startTime = `${newShift.value.startHour}:${newShift.value.startMinute}`
   const endTime = `${newShift.value.endHour}:${newShift.value.endMinute}`
-
-  emit('addShift', {
-    name: worker ? worker.name : 'Unassigned',
-    role: newShift.value.role,
-    time: `${startTime} - ${endTime}`,
-    status: 'active' // Default to active since we assigned a worker
-  })
+  
+  if (isEditing.value) {
+    emit('updateShift', {
+      id: editingShiftId.value,
+      name: worker ? worker.name : 'Unassigned',
+      role: newShift.value.role,
+      time: `${startTime} - ${endTime}`,
+      // Keep existing status if editing
+    })
+  } else {
+    emit('addShift', {
+      name: worker ? worker.name : 'Unassigned',
+      role: newShift.value.role,
+      time: `${startTime} - ${endTime}`,
+      status: 'active' // Default to active since we assigned a worker
+    })
+  }
 
   cancelAdd()
 }
@@ -80,8 +126,11 @@ const submitShift = () => {
             <BaseButton v-if="shift.status === 'sick'" variant="danger" size="sm" @click="$emit('publishShift', shift.id)">
               Find Replacement
             </BaseButton>
+            <BaseButton variant="secondary" size="sm" @click="editShift(shift)">
+              Edit Shift
+            </BaseButton>
             <BaseButton variant="ghost" size="sm" @click="$emit('deleteShift', shift.id)">
-              🗑️
+              Delete Shift
             </BaseButton>
           </template>
         </ShiftCard>
@@ -93,7 +142,7 @@ const submitShift = () => {
 
       <div class="add-section">
         <div v-if="isAdding" class="add-form">
-          <h4 class="form-title">Assign Staff</h4>
+          <h4 class="form-title">{{ isEditing ? 'Edit Shift' : 'Assign Staff' }}</h4>
           
           <div class="form-group">
             <select v-model="newShift.workerId" @change="handleWorkerSelect" class="input" required>
@@ -133,7 +182,7 @@ const submitShift = () => {
           </div>
 
           <div class="form-actions">
-            <BaseButton variant="primary" block @click="submitShift">Save</BaseButton>
+            <BaseButton variant="primary" block @click="submitShift">{{ isEditing ? 'Update' : 'Save' }}</BaseButton>
             <BaseButton variant="secondary" block @click="cancelAdd">Cancel</BaseButton>
           </div>
         </div>
