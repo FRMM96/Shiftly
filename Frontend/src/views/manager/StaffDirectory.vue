@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import BaseButton from '../../components/shared/BaseButton.vue' 
 import ManagerLayout from '../../components/manager/ManagerLayout.vue' // <--- 1. NEW IMPORT
+import StaffModal from '../../components/manager/StaffModal.vue'
 
 // --- Mock Data ---
 const staffList = ref([
@@ -10,6 +11,9 @@ const staffList = ref([
   { id: 3, name: 'Jenny Lindberg', role: 'Bartender', phone: '+46 70 555 12 34', email: 'jenny@bar.com', status: 'sick', avatar: 'J' },
   { id: 4, name: 'Tom Hardy', role: 'Dishwasher', phone: '+46 70 111 22 33', email: 'tom@clean.com', status: 'inactive', avatar: 'T' },
 ])
+
+const isModalOpen = ref(false)
+const editingStaff = ref(null)
 
 // --- Search & Filter ---
 const searchQuery = ref('')
@@ -21,19 +25,36 @@ const filteredStaff = computed(() => {
 })
 
 // --- Actions ---
-const handleAddStaff = () => {
-  const name = prompt("Enter Staff Name:")
-  if (name) {
+const handleOpenAdd = () => {
+  editingStaff.value = null
+  isModalOpen.value = true
+}
+
+const handleOpenEdit = (person) => {
+  editingStaff.value = { ...person }
+  isModalOpen.value = true
+}
+
+const handleSaveStaff = (staffData) => {
+  if (staffData.id) {
+    // Edit existing
+    const index = staffList.value.findIndex(p => p.id === staffData.id)
+    if (index !== -1) {
+      staffList.value[index] = { ...staffList.value[index], ...staffData }
+    }
+  } else {
+    // Add new
     staffList.value.push({
       id: Date.now(),
-      name,
-      role: 'New Hire',
-      phone: '-',
-      email: '-',
+      name: staffData.name,
+      role: staffData.role,
+      phone: staffData.phone,
+      email: staffData.email,
       status: 'active',
-      avatar: name.charAt(0)
+      avatar: staffData.name.charAt(0)
     })
   }
+  isModalOpen.value = false
 }
 
 const handleDelete = (id) => {
@@ -53,7 +74,7 @@ const handleDelete = (id) => {
           <h1 class="page-title">Staff Directory</h1>
           <p class="page-subtitle">Manage your internal team and contact details.</p>
         </div>
-        <BaseButton variant="primary" @click="handleAddStaff">+ Add New Staff</BaseButton>
+        <BaseButton variant="primary" @click="handleOpenAdd">+ Add New Staff</BaseButton>
       </header>
 
       <div class="toolbar">
@@ -85,7 +106,7 @@ const handleDelete = (id) => {
           </div>
 
           <div class="card-actions">
-            <BaseButton variant="secondary" size="sm" block>Edit Profile</BaseButton>
+            <BaseButton variant="secondary" size="sm" block @click="handleOpenEdit(person)">Edit Profile</BaseButton>
             <button class="icon-btn-delete" @click="handleDelete(person.id)">🗑️</button>
           </div>
 
@@ -93,6 +114,14 @@ const handleDelete = (id) => {
       </div>
 
     </div>
+
+    <!-- Staff Modal (Add & Edit) -->
+    <StaffModal 
+      :isOpen="isModalOpen" 
+      :initialData="editingStaff"
+      @close="isModalOpen = false" 
+      @save="handleSaveStaff" 
+    />
 
   </ManagerLayout>
 </template>
