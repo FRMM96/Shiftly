@@ -10,7 +10,8 @@ import {
   addMonths, 
   subMonths, 
   isSameMonth, 
-  isSameDay 
+  isSameDay,
+  isToday
 } from 'date-fns'
 
 // 1. Props: The calendar receives shifts from the parent (ManagerHome)
@@ -62,10 +63,13 @@ const getShiftsForDay = (date) => {
         v-for="day in calendarDays" 
         :key="day" 
         class="day-cell"
-        :class="{ 'dimmed': !isSameMonth(day, currentMonth) }"
+        :class="{ 'dimmed': !isSameMonth(day, currentMonth), 'today-cell': isToday(day) }"
         @click="$emit('selectDay',day)"
       >
-        <span class="day-number">{{ format(day, 'd') }}</span>
+        <div class="day-header">
+          <span class="day-number" :class="{ 'is-today': isToday(day) }">{{ format(day, 'd') }}</span>
+          <span v-if="isToday(day)" class="today-label">Today</span>
+        </div>
 
         <div class="shifts-container">
           <div 
@@ -160,8 +164,36 @@ const getShiftsForDay = (date) => {
 .day-number {
   font-size: 0.85rem;
   font-weight: 600;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 6px;
+}
+
+.day-number.is-today {
+  background-color: #0f172a;
+  color: white;
+}
+
+.today-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.today-cell {
+  background-color: #f8fafc;
 }
 
 /* Shift Pill Styles */

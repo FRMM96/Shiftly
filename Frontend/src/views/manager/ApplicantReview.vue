@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import BaseButton from '../../components/shared/BaseButton.vue'
 import ManagerLayout from '../../components/manager/ManagerLayout.vue'
+import CandidateProfileModal from '../../components/manager/CandidateProfileModal.vue'
 //import StatusBadge from '../components/StatusBadge.vue'
 
 // --- Mock Data: Open Shifts ---
@@ -19,6 +20,8 @@ const candidates = ref([
 ])
 
 const selectedShiftId = ref(101)
+const isProfileModalOpen = ref(false)
+const selectedCandidate = ref(null)
 
 // --- Computed ---
 const selectedShift = computed(() => openShifts.value.find(s => s.id === selectedShiftId.value))
@@ -40,6 +43,8 @@ const handleHire = (candidate) => {
         } else {
             selectedShiftId.value = null
         }
+        
+        isProfileModalOpen.value = false
 
         alert(`Success! ${candidate.name} has been notified.`)
     }
@@ -47,6 +52,12 @@ const handleHire = (candidate) => {
 
 const handleReject = (id) => {
     candidates.value = candidates.value.filter(c => c.id !== id)
+    isProfileModalOpen.value = false
+}
+
+const openCandidateProfile = (candidate) => {
+    selectedCandidate.value = candidate
+    isProfileModalOpen.value = true
 }
 </script>
 
@@ -101,7 +112,7 @@ const handleReject = (id) => {
                     </div>
 
                     <div v-else class="candidates-list">
-                        <div v-for="person in candidates" :key="person.id" class="candidate-card">
+                        <div v-for="person in candidates" :key="person.id" class="candidate-card clickable-card" @click="openCandidateProfile(person)">
 
                             <div class="candidate-left">
                                 <div class="avatar-lg">{{ person.avatar }}</div>
@@ -119,9 +130,9 @@ const handleReject = (id) => {
                                 <span class="applied-time">Applied {{ person.appliedTime }}</span>
 
                                 <div class="action-buttons">
-                                    <BaseButton variant="secondary" size="sm" @click="handleReject(person.id)">Not Hire
+                                    <BaseButton variant="secondary" size="sm" @click.stop="handleReject(person.id)">Not Hire
                                     </BaseButton>
-                                    <BaseButton variant="primary" size="sm" @click="handleHire(person)">Hire
+                                    <BaseButton variant="primary" size="sm" @click.stop="handleHire(person)">Hire
                                     </BaseButton>
                                 </div>
                             </div>
@@ -133,6 +144,14 @@ const handleReject = (id) => {
 
             </div>
         </div>
+
+        <CandidateProfileModal
+          :isOpen="isProfileModalOpen"
+          :candidate="selectedCandidate"
+          @close="isProfileModalOpen = false"
+          @hire="handleHire"
+          @reject="handleReject"
+        />
     </ManagerLayout>
 
 </template>
@@ -289,12 +308,17 @@ const handleReject = (id) => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: transform 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.candidate-card.clickable-card {
+    cursor: pointer;
 }
 
 .candidate-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-color: #cbd5e1;
 }
 
 .candidate-left {
