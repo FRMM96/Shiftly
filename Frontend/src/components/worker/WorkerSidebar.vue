@@ -7,7 +7,7 @@ const isActive = (path) => route.path === path || (path !== '/worker' && route.p
 
 <template>
     <aside class="sidebar">
-        <div class="logo">Shiftly <span class="badge">Worker</span></div>
+        <div class="logo">Radix <span class="badge">Worker</span></div>
 
         <nav class="nav-links">
             <router-link to="/worker" class="nav-item" :class="{ active: isActive('/worker') }">

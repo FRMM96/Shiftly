@@ -24,6 +24,7 @@ const props = defineProps({
 const emit = defineEmits(['dateClick'])
 
 const currentMonth = ref(new Date())
+const today = new Date()
 
 const calendarDays = computed(() => {
   const start = startOfWeek(startOfMonth(currentMonth.value), { weekStartsOn: 1 })
@@ -63,7 +64,10 @@ const prevMonth = () => currentMonth.value = subMonths(currentMonth.value, 1)
         :class="{ 'dimmed': !isSameMonth(day, currentMonth) }"
         @click="$emit('dateClick', { dateObj: day })"
       >
-        <span class="day-number">{{ format(day, 'd') }}</span>
+        <div class="day-cell-header">
+           <span class="day-number" :class="{ 'today-number': isSameDay(day, today) }">{{ format(day, 'd') }}</span>
+           <span v-if="isSameDay(day, today)" class="today-label">TODAY</span>
+        </div>
 
         <div class="shifts-container">
           <div 
@@ -167,12 +171,35 @@ const prevMonth = () => currentMonth.value = subMonths(currentMonth.value, 1)
   color: #d1d5db;
 }
 
+.day-cell-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
 .day-number {
   font-size: 0.85rem;
-  font-weight: 600;
-  display: block;
-  margin-bottom: 6px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   color: #374151;
+}
+
+.today-number {
+  background-color: #1a0f0f; /* Dark brown/black matching the screenshot */
+  color: white;
+}
+
+.today-label {
+  font-size: 0.70rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.5px;
 }
 
 /* Shift Pill Styles */
