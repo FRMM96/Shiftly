@@ -180,7 +180,7 @@ const getShiftsForDay = (date) => {
 }
 
 .day-number.is-today {
-  background-color: #0f172a;
+  background-color: #2a0f0f;
   color: white;
 }
 
