@@ -24,18 +24,20 @@ export const useShiftStore = defineStore('shifts', () => {
   
   const getShiftById = (id) => shifts.value.find(s => s.id == id)
 
-  // SAFE Getter: Finds shifts the current user applied to
   const myApplications = computed(() => {
     const userStore = useUserStore()
     if (!userStore.user) return []
     
-    return shifts.value.filter(shift => {
+    return shifts.value.reduce((acc, shift) => {
       // Safety check: Does the array exist?
-      if (!shift.applicants) return false
+      if (!shift.applicants) return acc
       
-      // Check if user is in the list
-      return shift.applicants.some(applicant => applicant.email === userStore.user.email)
-    })
+      const myApplication = shift.applicants.find(a => a.email === userStore.user.email)
+      if (myApplication) {
+          acc.push({ ...shift, applicationStatus: myApplication.status })
+      }
+      return acc
+    }, [])
   })
 
   // 3. ACTIONS

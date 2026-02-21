@@ -23,7 +23,8 @@ export const useScheduleStore = defineStore('schedule', () => {
       id: 103, 
       date: '2026-02-14', 
       status: 'request_off', // Orange
-      reason: 'Valentine’s Day' 
+      reason: 'Personal Time',
+      time: '10:00 - 14:00'
     },
     // Added one more active shift so the calendar looks populated
     { 
@@ -43,13 +44,14 @@ export const useScheduleStore = defineStore('schedule', () => {
   }
 
   // 3. ACTIONS
-  const requestTimeOff = (date, reason) => {
+  const requestTimeOff = (date, reason, time = null) => {
     console.log(`Requesting off for ${date}: ${reason}`)
     mySchedule.value.push({
       id: Date.now(),
       date: date,
       status: 'request_off',
-      reason: reason
+      reason: reason,
+      time: time
     })
   }
 
@@ -59,13 +61,33 @@ export const useScheduleStore = defineStore('schedule', () => {
     if (shift) {
         shift.status = 'sick'
         shift.reason = 'Reported Sick'
+    } else {
+        mySchedule.value.push({
+            id: Date.now(),
+            date: date,
+            status: 'sick',
+            reason: 'Reported Sick'
+        })
     }
+  }
+
+  const updateTimeOff = (id, updatedData) => {
+    const index = mySchedule.value.findIndex(s => s.id === id)
+    if (index !== -1) {
+      mySchedule.value[index] = { ...mySchedule.value[index], ...updatedData }
+    }
+  }
+
+  const deleteTimeOff = (id) => {
+    mySchedule.value = mySchedule.value.filter(s => s.id !== id)
   }
 
   return { 
     mySchedule, 
     getDayStatus, 
     requestTimeOff, 
-    markSick 
+    markSick,
+    updateTimeOff,
+    deleteTimeOff
   }
 })
