@@ -9,85 +9,82 @@ const router = useRouter()
 const route = useRoute()
 const store = useShiftStore()
 
-// 1. Check if we are editing (is there an ID in the URL?)
 const isEditing = computed(() => !!route.params.id)
-const shiftId = route.params.id
+const shiftId = computed(() => route.params.id)
 
-// Time Options for Dropdowns
+// Time Options
 const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const minutes = ['00', '15', '30', '45']
 
-// Form State
 const form = ref({
-    role: '',
-    date: '',
-    startHour: '09',
-    startMinute: '00',
-    endHour: '17',
-    endMinute: '00',
-    pay: ''
+  role: '',
+  date: '',
+  startHour: '09',
+  startMinute: '00',
+  endHour: '17',
+  endMinute: '00',
+  pay: ''
 })
 
-// 2. Load Data if Editing
-onMounted(() => {
-    if (isEditing.value) {
-        const existingShift = store.getShiftById(shiftId)
-        if (existingShift) {
-            // Split "09:00" into "09" and "00"
-            const [startH, startM] = existingShift.startTime.split(':')
-            const [endH, endM] = existingShift.endTime.split(':')
+onMounted(async () => {
+  // Ensure shifts are loaded (direct link / refresh)
+  await store.fetchManagerShifts()
 
-            form.value = {
-                role: existingShift.role,
-                date: existingShift.date,
-                startHour: startH,
-                startMinute: startM,
-                endHour: endH,
-                endMinute: endM,
-                // Remove ' kr/h' text to show just the number
-                pay: parseInt(existingShift.pay)
-            }
-        }
+  if (isEditing.value) {
+    const existingShift = store.getShiftById(shiftId.value)
+    if (existingShift) {
+      const [startH, startM] = existingShift.startTime.split(':')
+      const [endH, endM] = existingShift.endTime.split(':')
+
+      form.value = {
+        role: existingShift.role,
+        date: existingShift.date,
+        startHour: startH,
+        startMinute: startM,
+        endHour: endH,
+        endMinute: endM,
+        pay: existingShift.pay ? String(existingShift.pay).replace(/\s*kr\/h\s*/i, '').trim() : ''
+      }
     }
+  }
 })
 
-// 3. Handle Submit (Create or Update)
-const handleSubmit = () => {
-    const shiftData = {
-        role: form.value.role,
-        date: form.value.date,
-        // Combine dropdowns into time strings
-        startTime: `${form.value.startHour}:${form.value.startMinute}`,
-        endTime: `${form.value.endHour}:${form.value.endMinute}`,
-        pay: form.value.pay + ' kr/h',
-        status: 'open'
-    }
+const handleSubmit = async () => {
+  const shiftData = {
+    role: form.value.role,
+    date: form.value.date,
+    startTime: `${form.value.startHour}:${form.value.startMinute}`,
+    endTime: `${form.value.endHour}:${form.value.endMinute}`,
+    pay: form.value.pay ? `${form.value.pay} kr/h` : null,
+    status: 'ACTIVE'
+  }
 
+  try {
     if (isEditing.value) {
-        // 🟢 UPDATE Existing
-        store.updateShift({ id: Number(shiftId), ...shiftData })
-        alert('Shift Updated!')
+      await store.updateShift({ id: shiftId.value, ...shiftData })
+      alert('Shift updated!')
     } else {
-        // 🟢 CREATE New
-        store.addShift({
-            ...shiftData,
-            // Add a default image for new shifts
-            image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=500&q=60'
-        })
-        alert('Shift Published!')
+      await store.createShift({ ...shiftData })
+      alert('Shift created!')
     }
-    // Redirect back to Manager Dashboard
     router.push('/manager')
+  } catch (e) {
+    alert(e.message || 'Failed to save shift')
+  }
 }
 
-// 4. Handle Delete
-const handleDelete = () => {
-    if (confirm("Delete this shift permanently?")) {
-        store.deleteShift(Number(shiftId))
-        router.push('/manager')
+const handleDelete = async () => {
+  if (confirm("Delete this shift permanently?")) {
+    try {
+      await store.deleteShift(shiftId.value)
+      router.push('/manager')
+    } catch (e) {
+      alert(e.message || 'Failed to delete shift')
     }
+  }
 }
 </script>
+
 
 <template>
     <ManagerLayout>

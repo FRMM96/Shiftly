@@ -1,101 +1,79 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import BaseButton from '../../components/shared/BaseButton.vue' 
-import ManagerLayout from '../../components/manager/ManagerLayout.vue' // <--- 1. NEW IMPORT
+import ManagerLayout from '../../components/manager/ManagerLayout.vue'
+import { apiFetch } from '../../lib/api'
 
-// --- Mock Data ---
-const staffList = ref([
-  { id: 1, name: 'Sarah Jenkins', role: 'Chef', phone: '+46 70 123 45 67', email: 'sarah@kitchen.com', status: 'active', avatar: 'S' },
-  { id: 2, name: 'Mike Thompson', role: 'Waiter', phone: '+46 70 987 65 43', email: 'mike@floor.com', status: 'active', avatar: 'M' },
-  { id: 3, name: 'Jenny Lindberg', role: 'Bartender', phone: '+46 70 555 12 34', email: 'jenny@bar.com', status: 'sick', avatar: 'J' },
-  { id: 4, name: 'Tom Hardy', role: 'Dishwasher', phone: '+46 70 111 22 33', email: 'tom@clean.com', status: 'inactive', avatar: 'T' },
-])
+const staffList = ref([])
+const loading = ref(false)
+const error = ref('')
+
+async function fetchStaff() {
+  loading.value = true
+  error.value = ''
+  try {
+    const res = await apiFetch('/api/users')
+    staffList.value = res.users.map(u => ({
+      id: u.id,
+      name: u.username,
+      role: u.role,
+      email: u.email,
+      status: 'active',
+      avatar: (u.username || u.email || '?').charAt(0).toUpperCase(),
+    }))
+  } catch (e) {
+    error.value = e.message || 'Failed to load staff'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(fetchStaff)
 
 // --- Search & Filter ---
 const searchQuery = ref('')
 const filteredStaff = computed(() => {
   return staffList.value.filter(person => 
     person.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-    person.role.toLowerCase().includes(searchQuery.value.toLowerCase())
+    person.role.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+    person.email.toLowerCase().includes(searchQuery.value.toLowerCase())
   )
 })
-
-// --- Actions ---
-const handleAddStaff = () => {
-  const name = prompt("Enter Staff Name:")
-  if (name) {
-    staffList.value.push({
-      id: Date.now(),
-      name,
-      role: 'New Hire',
-      phone: '-',
-      email: '-',
-      status: 'active',
-      avatar: name.charAt(0)
-    })
-  }
-}
-
-const handleDelete = (id) => {
-  if(confirm("Remove this staff member?")) {
-    staffList.value = staffList.value.filter(p => p.id !== id)
-  }
-}
 </script>
 
 <template>
   <ManagerLayout>
-    
     <div class="page-container">
-      
       <header class="page-header">
         <div>
           <h1 class="page-title">Staff Directory</h1>
-          <p class="page-subtitle">Manage your internal team and contact details.</p>
+          <p class="page-subtitle">These are real users (accounts) from the backend database.</p>
         </div>
-        <BaseButton variant="primary" @click="handleAddStaff">+ Add New Staff</BaseButton>
+        <BaseButton variant="primary" @click="fetchStaff">Refresh</BaseButton>
       </header>
+
+      <p v-if="error" class="error">{{ error }}</p>
+      <p v-else-if="loading">Loading…</p>
 
       <div class="toolbar">
         <div class="search-wrapper">
-          <span class="search-icon">🔍</span>
-          <input v-model="searchQuery" type="text" placeholder="Search by name or role..." class="search-input" />
+          <input v-model="searchQuery" placeholder="Search staff..." />
         </div>
       </div>
 
-      <div class="staff-grid">
-        <div v-for="person in filteredStaff" :key="person.id" class="staff-card">
-          
-          <div class="card-top">
-            <div class="avatar-circle">{{ person.avatar }}</div>
-            <div class="person-info">
-              <h3 class="person-name">{{ person.name }}</h3>
-              <span class="person-role">{{ person.role }}</span>
-            </div>
-            <div class="status-indicator" :class="person.status"></div>
+      <div class="grid">
+        <div v-for="person in filteredStaff" :key="person.id" class="card">
+          <div class="avatar">{{ person.avatar }}</div>
+          <div class="info">
+            <div class="name">{{ person.name }}</div>
+            <div class="meta">{{ person.role }} • {{ person.email }}</div>
           </div>
-
-          <div class="card-details">
-            <div class="detail-row">
-              <span class="icon">📞</span> {{ person.phone }}
-            </div>
-            <div class="detail-row">
-              <span class="icon">✉️</span> {{ person.email }}
-            </div>
-          </div>
-
-          <div class="card-actions">
-            <BaseButton variant="secondary" size="sm" block>Edit Profile</BaseButton>
-            <button class="icon-btn-delete" @click="handleDelete(person.id)">🗑️</button>
-          </div>
-
         </div>
       </div>
-
     </div>
-
   </ManagerLayout>
 </template>
+
 
 <style scoped>
 /* Page Layout */
@@ -225,4 +203,13 @@ const handleDelete = (id) => {
   padding: 8px; border-radius: 4px; transition: all 0.2s;
 }
 .icon-btn-delete:hover { opacity: 1; background-color: #fef2f2; }
+
+.error { color: #b00020; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); }
+.card { display:flex; gap:12px; padding:12px; border:1px solid #eee; border-radius:12px; background:#fff; }
+.avatar { width:40px; height:40px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:#eef; font-weight:700; }
+.name { font-weight:700; }
+.meta { font-size: 13px; opacity: .8; }
+.toolbar input { width:100%; padding:10px; border:1px solid #ddd; border-radius:10px; }
+
 </style>

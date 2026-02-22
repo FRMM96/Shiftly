@@ -1,36 +1,68 @@
 <template>
-    <div class="signup-page">
-        <div class="signup-container">
-            <h1>Sign Up</h1>
-            <form @submit.prevent="handleSignUp">
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" v-model="username" placeholder="Choose a username" required />
-                    <label for="password">Password</label>
-                    <input type="password" id="password" v-model="password" placeholder="Choose a password" required />
-                    <label for="number">Phone number</label>
-                    <input type="text" id="number" v-model="number" placeholder="Enter your phone number" required />
-                    <label for="email">Email</label>
-                    <input type="email" id="email" v-model="email" placeholder="Enter your email" required />
-                </div>
-                <button type="submit">Sign Up</button>
-            </form>
+  <div class="signup-page">
+    <div class="signup-container">
+      <h1>Sign Up</h1>
+      <form @submit.prevent="handleSignUp">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" v-model="username" placeholder="Choose a username" required />
+
+          <label for="email">Email</label>
+          <input type="email" id="email" v-model="email" placeholder="Enter your email" required />
+
+          <label for="password">Password</label>
+          <input type="password" id="password" v-model="password" placeholder="Choose a password" required />
+
+          <label for="role">Account type</label>
+          <select id="role" v-model="role">
+            <option value="EMPLOYEE">Employee</option>
+            <option value="BOSS">Manager</option>
+          </select>
         </div>
+
+        <p v-if="error" class="error">{{ error }}</p>
+
+        <button type="submit" :disabled="loading">{{ loading ? 'Creating…' : 'Sign Up' }}</button>
+      </form>
+
+      <div class="login-link">
+        <p>Already have an account? <router-link to="/login">Login</router-link></p>
+      </div>
     </div>
+  </div>
 </template>
 
 <script>
-export default {
-    name: 'App',
-    data() {
-        return {
-            username: '',
-            password: '',
-            number: '',
-            email: ''
-        };
-    },
+import { useUserStore } from '../stores/userStore'
 
+export default {
+  name: 'SignUpView',
+  data() {
+    return {
+      username: '',
+      email: '',
+      password: '',
+      role: 'EMPLOYEE',
+      loading: false,
+      error: ''
+    }
+  },
+  methods: {
+    async handleSignUp() {
+      const userStore = useUserStore()
+      this.loading = true
+      this.error = ''
+      try {
+        await userStore.register({ email: this.email, username: this.username, password: this.password, role: this.role })
+        if (userStore.user.role === 'BOSS') this.$router.push('/manager')
+        else this.$router.push('/worker')
+      } catch (e) {
+        this.error = e.message || 'Sign up failed'
+      } finally {
+        this.loading = false
+      }
+    }
+  }
 }
 </script>
 
@@ -128,5 +160,11 @@ button:hover {
 
 .register-link a:hover {
     text-decoration: underline;
+}
+
+.error {
+  margin: 10px 0;
+  color: #b00020;
+  font-size: 14px;
 }
 </style>

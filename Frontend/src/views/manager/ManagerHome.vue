@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue' // Added computed
+import { ref, computed, onMounted } from 'vue' // Added computed
 import { isSameDay } from 'date-fns'
 import { useRouter } from 'vue-router'
 import { useShiftStore } from '../../stores/shiftStore' // <--- 1. Import Store
@@ -13,6 +13,10 @@ import BaseButton from '../../components/shared/BaseButton.vue'
 
 const router = useRouter()
 const store = useShiftStore() // <--- 2. Init Store
+
+onMounted(() => {
+    store.fetchManagerShifts()
+})
 
 // --- State ---
 const isModalOpen = ref(false)
@@ -39,9 +43,7 @@ const resolveSickIssue = (shiftId) => {
     const shift = store.shifts.find(s => s.id === shiftId)
     if (shift) {
         if (confirm(`Publish ${shift.role} shift to Shiftly Marketplace?`)) {
-            shift.status = 'open'
-            shift.name = 'Open Slot'
-            // No need to update stats manually, the computed prop handles it
+            store.publishShift(shiftId)
         }
     }
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { format, isSameDay } from 'date-fns' 
 import { useRouter } from 'vue-router'
 
@@ -16,6 +16,10 @@ import { useScheduleStore } from '../../stores/scheduleStore'
 const router = useRouter()
 const shiftStore = useShiftStore()
 const scheduleStore = useScheduleStore()
+
+onMounted(() => {
+  scheduleStore.fetchMySchedule()
+})
 
 const activeTab = ref('schedule')
 const isModalOpen = ref(false)
