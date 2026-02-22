@@ -30,6 +30,9 @@ async function fetchStaff() {
 
 onMounted(fetchStaff)
 
+const isModalOpen = ref(false)
+const editingStaff = ref(null)
+
 // --- Search & Filter ---
 const searchQuery = ref('')
 const filteredStaff = computed(() => {

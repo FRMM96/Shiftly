@@ -268,12 +268,17 @@ watch(selectedShiftId, loadApplicants)
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: transform 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.candidate-card.clickable-card {
+    cursor: pointer;
 }
 
 .candidate-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-color: #cbd5e1;
 }
 
 .candidate-left {

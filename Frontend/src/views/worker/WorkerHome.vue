@@ -8,6 +8,8 @@ import WorkerLayout from '../../components/worker/WorkerLayout.vue'
 import WorkerCalendar from '../../components/worker/WorkerCalendar.vue'
 import MarketplaceCard from '../../components/shared/MarketplaceCard.vue'
 import WorkerDayDetailModal from '../../components/worker/WorkerDayDetailModal.vue'
+import ShiftCard from '../../components/shared/ShiftCard.vue'
+import BaseButton from '../../components/shared/BaseButton.vue'
 
 // 2. Stores
 import { useShiftStore } from '../../stores/shiftStore'
@@ -26,14 +28,20 @@ const isModalOpen = ref(false)
 const selectedDate = ref(null)
 const selectedDayShifts = ref([])
 
+const todayDateFormatted = computed(() => format(new Date(), 'EEEE, MMMM do, yyyy'))
+
 // 3. Stats Logic
+const upcomingShifts = computed(() => {
+    return (scheduleStore.mySchedule || []).filter(s => s.status === 'active')
+})
+
 const stats = computed(() => {
     // Safety check: Ensure arrays exist before filtering
     const schedule = scheduleStore.mySchedule || []
     const apps = shiftStore.myApplications || []
 
     return {
-        upcoming: schedule.filter(s => s.status === 'active').length,
+        upcoming: upcomingShifts.value.length,
         pending: apps.length,
         sick: schedule.filter(s => s.status === 'sick').length
     }
@@ -52,13 +60,37 @@ const onDateClick = ({ dateObj }) => {
 }
 
 // Handle Request Time Off from Modal
-const handleRequestTimeOff = (dateObj) => {
-    const dateStr = format(dateObj, 'yyyy-MM-dd')
-     if (confirm(`Request time off for ${dateStr}?`)) {
-        scheduleStore.requestTimeOff(dateStr, "Personal Time")
+const handleRequestTimeOff = ({ date, reason, time }) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    const displayTime = time ? ` from ${time}` : ' (All Day)'
+    if (confirm(`Request time off for ${dateStr}${displayTime}?`)) {
+        scheduleStore.requestTimeOff(dateStr, reason, time)
         // Refresh modal data
-        onDateClick({ dateObj }) 
+        onDateClick({ dateObj: date }) 
     }
+}
+
+const handleMarkSick = (dateObj) => {
+    // We get a Date object, convert to string, unless it already is string
+    const dateObjInstance = typeof dateObj === 'string' ? new Date(dateObj) : dateObj
+    const dateStr = format(dateObjInstance, 'yyyy-MM-dd')
+    if (confirm(`Are you sure you want to call in sick for ${dateStr}?`)) {
+        scheduleStore.markSick(dateStr)
+        // Refresh modal data if it's open
+        if (isModalOpen.value) {
+           onDateClick({ dateObj: dateObjInstance }) 
+        }
+    }
+}
+
+const handleUpdateTimeOff = (updatedData) => {
+    scheduleStore.updateTimeOff(updatedData.id, updatedData)
+    onDateClick({ dateObj: updatedData.date })
+}
+
+const handleDeleteTimeOff = (id) => {
+    scheduleStore.deleteTimeOff(id)
+    onDateClick({ dateObj: selectedDate.value })
 }
 </script>
 
@@ -68,18 +100,21 @@ const handleRequestTimeOff = (dateObj) => {
         <div class="content-wrapper">
 
             <header class="header">
-                <h1>Dashboard</h1>
+                <div>
+                    <h1>Dashboard</h1>
+                    <p class="date-subtitle">{{ todayDateFormatted }}</p>
+                </div>
                 <button @click="router.push('/worker/marketplace')" class="btn-create">
                     🔍 Find Work
                 </button>
             </header>
 
             <div class="stats-grid">
-                <div class="stat-card">
+                <div class="stat-card clickable-stat" @click="activeTab = 'upcoming'">
                     <span class="stat-label">Upcoming Shifts</span>
                     <span class="stat-number">{{ stats.upcoming }}</span>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card clickable-stat" @click="activeTab = 'applications'">
                     <span class="stat-label">Pending Requests</span>
                     <span class="stat-number">{{ stats.pending }}</span>
                 </div>
@@ -98,6 +133,9 @@ const handleRequestTimeOff = (dateObj) => {
                         <button class="tab-btn" :class="{ active: activeTab === 'schedule' }" @click="activeTab = 'schedule'">
                             📅 Schedule
                         </button>
+                        <button class="tab-btn" :class="{ active: activeTab === 'upcoming' }" @click="activeTab = 'upcoming'">
+                            📋 Upcoming
+                        </button>
                         <button class="tab-btn" :class="{ active: activeTab === 'applications' }" @click="activeTab = 'applications'">
                             ⏳ Applications
                         </button>
@@ -108,12 +146,38 @@ const handleRequestTimeOff = (dateObj) => {
                     <WorkerCalendar :schedule="scheduleStore.mySchedule || []" @dateClick="onDateClick" />
                 </div>
 
+                <div v-else-if="activeTab === 'upcoming'" class="tab-content">
+                    <div v-if="stats.upcoming === 0" class="empty-state">
+                        No upcoming shifts found.
+                    </div>
+                    <div v-else class="list-grid">
+                        <ShiftCard v-for="shift in upcomingShifts" :key="shift.id" :shift="shift">
+                            <template #actions>
+                                <div class="flex-actions mt-2" style="display: flex; gap: 1rem;">
+                                    <BaseButton variant="danger" outline size="sm" @click="handleMarkSick(new Date(shift.date))" style="flex: 1;">
+                                        Call in Sick
+                                    </BaseButton>
+                                    <BaseButton variant="secondary" outline size="sm" @click="onDateClick({ dateObj: new Date(shift.date) })" style="flex: 1;">
+                                        Request Time Off
+                                    </BaseButton>
+                                </div>
+                            </template>
+                        </ShiftCard>
+                    </div>
+                </div>
+
                 <div v-else class="tab-content">
                     <div v-if="stats.pending === 0" class="empty-state">
                         No active applications found.
                     </div>
                     <div v-else class="list-grid">
-                        <MarketplaceCard v-for="shift in shiftStore.myApplications" :key="shift.id" :shift="shift" />
+                        <MarketplaceCard v-for="shift in shiftStore.myApplications" :key="shift.id" :shift="shift">
+                            <template #actions>
+                                <span class="status-badge" :class="shift.applicationStatus">
+                                    {{ shift.applicationStatus }}
+                                </span>
+                            </template>
+                        </MarketplaceCard>
                     </div>
                 </div>
 
@@ -124,6 +188,9 @@ const handleRequestTimeOff = (dateObj) => {
                     :shifts="selectedDayShifts"
                     @close="isModalOpen = false"
                     @requestTimeOff="handleRequestTimeOff"
+                    @markSick="handleMarkSick"
+                    @updateTimeOff="handleUpdateTimeOff"
+                    @deleteTimeOff="handleDeleteTimeOff"
                 />
 
             </section>
@@ -151,6 +218,13 @@ const handleRequestTimeOff = (dateObj) => {
     font-size: 2rem; /* Adjusted to match Manager usually */
     font-weight: 700;
     color: #0f172a;
+    margin: 0;
+}
+
+.date-subtitle {
+    color: #64748b;
+    margin: 4px 0 0 0;
+    font-size: 1rem;
 }
 
 .btn-create {
@@ -177,6 +251,15 @@ const handleRequestTimeOff = (dateObj) => {
     border-radius: 12px;
     border: 1px solid #e2e8f0;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.clickable-stat {
+    cursor: pointer;
+}
+.clickable-stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .stat-label {
@@ -196,10 +279,7 @@ const handleRequestTimeOff = (dateObj) => {
     color: #ef4444;
 }
 
-/* --- Section Area --- */
-.section-area {
-    /* No min-height, let content dictate */
-}
+
 
 .section-header {
     /* Container for tabs */
@@ -255,5 +335,24 @@ const handleRequestTimeOff = (dateObj) => {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.status-badge.pending {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+.status-badge.approved {
+    background-color: #dcfce3;
+    color: #16a34a;
 }
 </style>
