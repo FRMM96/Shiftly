@@ -1,32 +1,54 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { apiFetch, setToken } from '../lib/api'
 
 export const useUserStore = defineStore('user', () => {
-  // 1. STATE: The Worker's Profile
-  const user = ref({
-    name: 'Julian S.',
-    email: 'julian@example.com',
-    role: 'Worker', // or 'Manager'
-    bio: 'Experienced bartender with 5 years in high-volume clubs.',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    skills: ['Bartender', 'Waiter'] 
-  })
+  const user = ref(null)
+  const token = ref(localStorage.getItem('shiftly_token') || null)
 
-  // 2. ACTIONS
-  const updateProfile = (updatedData) => {
-    user.value = { ...user.value, ...updatedData }
+  const isLoggedIn = computed(() => !!token.value && !!user.value)
+  const isBoss = computed(() => user.value?.role === 'BOSS')
+  const isEmployee = computed(() => user.value?.role === 'EMPLOYEE')
+
+  async function register({ email, username, password, role }) {
+    const res = await apiFetch('/api/auth/register', {
+      method: 'POST',
+      auth: false,
+      body: { email, username, password, role }
+    })
+    token.value = res.token
+    setToken(res.token)
+    user.value = res.user
+    return res
   }
 
-  const toggleSkill = (skill) => {
-    if (user.value.skills.includes(skill)) {
-      user.value.skills = user.value.skills.filter(s => s !== skill)
-    } else {
-      user.value.skills.push(skill)
-    }
+  async function login({ emailOrUsername, password }) {
+    const res = await apiFetch('/api/auth/login', {
+      method: 'POST',
+      auth: false,
+      body: { emailOrUsername, password }
+    })
+    token.value = res.token
+    setToken(res.token)
+    user.value = res.user
+    return res
   }
 
-  // Helper to check if user qualifies for a shift
-  const hasSkill = (requiredRole) => user.value.skills.includes(requiredRole)
+  async function fetchMe() {
+    if (!token.value) return null
+    const res = await apiFetch('/api/auth/me', { method: 'GET', auth: true })
+    user.value = res.user
+    return res.user
+  }
 
-  return { user, updateProfile, toggleSkill, hasSkill }
+  function logout() {
+    token.value = null
+    user.value = null
+    setToken(null)
+  }
+
+  // Helper: check if user qualifies for a shift (simple match on roleName)
+  const hasSkill = (requiredRole) => true // Placeholder: extend with real skills if you add them to backend
+
+  return { user, token, isLoggedIn, isBoss, isEmployee, register, login, fetchMe, logout, hasSkill }
 })

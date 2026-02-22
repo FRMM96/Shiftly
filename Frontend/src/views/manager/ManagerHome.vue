@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed } from "vue"; // Added computed
-import { isSameDay } from "date-fns";
-import { useRouter } from "vue-router";
-import { useShiftStore } from "../../stores/shiftStore"; // <--- 1. Import Store
+import { ref, computed, onMounted } from 'vue' // Added computed
+import { isSameDay } from 'date-fns'
+import { useRouter } from 'vue-router'
+import { useShiftStore } from '../../stores/shiftStore' // <--- 1. Import Store
 // --- Imports ---
 import ManagerLayout from "../../components/manager/ManagerLayout.vue";
 import ShiftCalendar from "../../components/manager/ShiftCalendar.vue";
@@ -14,6 +14,10 @@ import BaseButton from "../../components/shared/BaseButton.vue";
 
 const router = useRouter();
 const store = useShiftStore(); // <--- 2. Init Store
+
+onMounted(() => {
+    store.fetchManagerShifts()
+})
 
 // --- State ---
 const isModalOpen = ref(false);
@@ -82,13 +86,12 @@ const handleCreateShift = () => {
 };
 
 const resolveSickIssue = (shiftId) => {
-  // Look in the store, not local refs
-  const shift = store.shifts.find((s) => s.id === shiftId);
-  if (shift) {
-    if (confirm(`Publish ${shift.role} shift to Shiftly Marketplace?`)) {
-      shift.status = "open";
-      shift.name = "Open Slot";
-      // No need to update stats manually, the computed prop handles it
+    // Look in the store, not local refs
+    const shift = store.shifts.find(s => s.id === shiftId)
+    if (shift) {
+        if (confirm(`Publish ${shift.role} shift to Shiftly Marketplace?`)) {
+            store.publishShift(shiftId)
+        }
     }
   }
 };

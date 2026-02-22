@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { apiFetch } from '../lib/api'
 
 export const useScheduleStore = defineStore('schedule', () => {
   
@@ -37,57 +38,31 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   ])
 
-  // 2. HELPER: Keep this! It makes your components cleaner.
-  // Instead of writing ".find()" inside the template, you just call this.
   const getDayStatus = (dateString) => {
     return mySchedule.value.find(s => s.date === dateString)
   }
 
-  // 3. ACTIONS
-  const requestTimeOff = (date, reason, time = null) => {
+  async function fetchMySchedule() {
+    const res = await apiFetch('/api/shifts/me')
+    mySchedule.value = res.shifts.map(s => ({
+      id: s.id,
+      date: new Date(s.date).toISOString().slice(0, 10),
+      status: s.status === 'ACTIVE' ? 'active' : s.status.toLowerCase(),
+      role: s.roleName,
+      business: s.business,
+      time: `${s.startTime} - ${s.endTime}`,
+    }))
+    return mySchedule.value
+  }
+
+  // Placeholder actions (you can wire these later with real endpoints)
+  const requestTimeOff = (date, reason) => {
     console.log(`Requesting off for ${date}: ${reason}`)
-    mySchedule.value.push({
-      id: Date.now(),
-      date: date,
-      status: 'request_off',
-      reason: reason,
-      time: time
-    })
   }
 
-  // Keep this too - allows workers to call in sick from the dashboard
   const markSick = (date) => {
-    const shift = mySchedule.value.find(s => s.date === date)
-    if (shift) {
-        shift.status = 'sick'
-        shift.reason = 'Reported Sick'
-    } else {
-        mySchedule.value.push({
-            id: Date.now(),
-            date: date,
-            status: 'sick',
-            reason: 'Reported Sick'
-        })
-    }
+    console.log(`Marking sick for ${date}`)
   }
 
-  const updateTimeOff = (id, updatedData) => {
-    const index = mySchedule.value.findIndex(s => s.id === id)
-    if (index !== -1) {
-      mySchedule.value[index] = { ...mySchedule.value[index], ...updatedData }
-    }
-  }
-
-  const deleteTimeOff = (id) => {
-    mySchedule.value = mySchedule.value.filter(s => s.id !== id)
-  }
-
-  return { 
-    mySchedule, 
-    getDayStatus, 
-    requestTimeOff, 
-    markSick,
-    updateTimeOff,
-    deleteTimeOff
-  }
+  return { mySchedule, getDayStatus, fetchMySchedule, requestTimeOff, markSick }
 })

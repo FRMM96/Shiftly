@@ -1,44 +1,69 @@
 <template>
-    <div class="login-page">
-        <div class="login-container">
-            <h1>Login</h1>
-            <form @submit.prevent="handleLogin">
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" v-model="username" placeholder="Enter your username" required />
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" v-model="password" placeholder="Enter your password"
-                        required />
-                </div>
-                <button type="submit">Login</button>
-            </form>
-            <div class="register-link">
-                <p>Don't have an account? <router-link to="/registerAccount">Register here</router-link></p>
-            </div>
+  <div class="login-page">
+    <div class="login-container">
+      <h1>Login</h1>
+      <form @submit.prevent="handleLogin">
+        <div class="form-group">
+          <label for="username">Email or username</label>
+          <input type="text" id="username" v-model="emailOrUsername" placeholder="Enter your email or username" required />
         </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" v-model="password" placeholder="Enter your password" required />
+        </div>
+
+        <p v-if="error" class="error">{{ error }}</p>
+
+        <button type="submit" :disabled="loading">{{ loading ? 'Logging in…' : 'Login' }}</button>
+      </form>
+
+      <div class="register-link">
+        <p>Don't have an account? <router-link to="/signup">Register here</router-link></p>
+      </div>
     </div>
+  </div>
 </template>
 
 <script>
+import { useUserStore } from '../stores/userStore'
+
 export default {
-    name: 'LoginView',
-    data() {
-        return {
-            username: '',
-            password: ''
-        };
-    },
-    methods: {
-        handleLogin() {
-            console.log(`Logging in with username: ${this.username} and password: ${this.password}`);
-        }
+  name: 'LoginView',
+  data() {
+    return {
+      emailOrUsername: '',
+      password: '',
+      loading: false,
+      error: ''
     }
+  },
+    methods: {
+    async handleLogin() {
+      const userStore = useUserStore()
+      this.loading = true
+      this.error = ''
+      try {
+        await userStore.login({ emailOrUsername: this.emailOrUsername, password: this.password })
+        // Route by role
+        if (userStore.user.role === 'BOSS') this.$router.push('/manager')
+        else this.$router.push('/worker')
+      } catch (e) {
+        this.error = e.message || 'Login failed'
+      } finally {
+        this.loading = false
+      }
+    }
+  }
 };
 </script>
 
 <style scoped>
+/* Keep your existing styles; only add an error style */
+.error {
+  margin: 10px 0;
+  color: #b00020;
+  font-size: 14px;
+}
 .login-page {
     display: flex;
     justify-content: center;

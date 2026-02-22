@@ -1,160 +1,120 @@
-<script setup>
-import { ref, computed } from 'vue'
-import BaseButton from '../../components/shared/BaseButton.vue'
-import ManagerLayout from '../../components/manager/ManagerLayout.vue'
-import CandidateProfileModal from '../../components/manager/CandidateProfileModal.vue'
-//import StatusBadge from '../components/StatusBadge.vue'
-
-// --- Mock Data: Open Shifts ---
-const openShifts = ref([
-    { id: 101, role: 'Bartender', time: '18:00 - 02:00', date: 'Today', applicants: 3 },
-    { id: 102, role: 'Dishwasher', time: '19:00 - 23:00', date: 'Tomorrow', applicants: 1 },
-    { id: 103, role: 'Waiter', time: '12:00 - 16:00', date: 'Fri, 28 Jan', applicants: 5 },
-])
-
-// --- Mock Data: Candidates (Linked to Shift 101 initially) ---
-const candidates = ref([
-    { id: 1, name: 'Alex M.', rating: 4.9, completedShifts: 42, avatar: 'A', appliedTime: '10m ago' },
-    { id: 2, name: 'Sarah K.', rating: 4.5, completedShifts: 12, avatar: 'S', appliedTime: '1h ago' },
-    { id: 3, name: 'John D.', rating: 5.0, completedShifts: 8, avatar: 'J', appliedTime: '2h ago' },
-])
-
-const selectedShiftId = ref(101)
-const isProfileModalOpen = ref(false)
-const selectedCandidate = ref(null)
-
-// --- Computed ---
-const selectedShift = computed(() => openShifts.value.find(s => s.id === selectedShiftId.value))
-
-// --- Actions ---
-const selectShift = (id) => {
-    selectedShiftId.value = id
-    // In a real app, you would fetch candidates for this shift ID here
-}
-
-const handleHire = (candidate) => {
-    if (confirm(`Hire ${candidate.name} for the ${selectedShift.value.role} shift?`)) {
-        // 1. Remove shift from "Open" list
-        openShifts.value = openShifts.value.filter(s => s.id !== selectedShiftId.value)
-
-        // 2. Clear selection or select next
-        if (openShifts.value.length > 0) {
-            selectedShiftId.value = openShifts.value[0].id
-        } else {
-            selectedShiftId.value = null
-        }
-        
-        isProfileModalOpen.value = false
-
-        alert(`Success! ${candidate.name} has been notified.`)
-    }
-}
-
-const handleReject = (id) => {
-    candidates.value = candidates.value.filter(c => c.id !== id)
-    isProfileModalOpen.value = false
-}
-
-const openCandidateProfile = (candidate) => {
-    selectedCandidate.value = candidate
-    isProfileModalOpen.value = true
-}
-</script>
 
 <template>
-    <ManagerLayout>
-        <div class="page-container">
-
-            <header class="page-header">
-                <div>
-                    <h1 class="page-title">Applicant Review</h1>
-                    <p class="page-subtitle">Select an open shift to review candidates.</p>
-                </div>
-                <div class="stats-pill">
-                    <strong>{{ openShifts.length }}</strong> Shifts Open
-                </div>
-            </header>
-
-            <div class="review-grid">
-
-                <aside class="shifts-column">
-                    <h3 class="column-title">Open Shifts</h3>
-
-                    <div v-if="openShifts.length === 0" class="empty-msg">No open shifts.</div>
-
-                    <div v-for="shift in openShifts" :key="shift.id" class="shift-item"
-                        :class="{ 'selected': shift.id === selectedShiftId }" @click="selectShift(shift.id)">
-                        <div class="shift-header">
-                            <span class="shift-role">{{ shift.role }}</span>
-                            <span class="shift-date">{{ shift.date }}</span>
-
-                        </div>
-                        <div class="shift-meta">
-                            <span>{{ shift.time }}</span>
-                            <span class="applicant-count">{{ shift.applicants }} applicants</span>
-                        </div>
-                    </div>
-                </aside>
-
-                <main class="candidates-column">
-
-                    <div v-if="selectedShift" class="candidates-header">
-                        <h3>Candidates for <strong>{{ selectedShift.role }}</strong></h3>
-                        <span class="time-badge">{{ selectedShift.time }}</span>
-                    </div>
-
-                    <div v-if="!selectedShift" class="empty-state">
-                        Select a shift to see applicants.
-                    </div>
-
-                    <div v-else-if="candidates.length === 0" class="empty-state">
-                        No applicants yet for this shift.
-                    </div>
-
-                    <div v-else class="candidates-list">
-                        <div v-for="person in candidates" :key="person.id" class="candidate-card clickable-card" @click="openCandidateProfile(person)">
-
-                            <div class="candidate-left">
-                                <div class="avatar-lg">{{ person.avatar }}</div>
-                                <div>
-                                    <h4 class="candidate-name">{{ person.name }}</h4>
-                                    <div class="trust-signals">
-                                        <span class="rating">⭐ {{ person.rating }}</span>
-                                        <span class="dot">•</span>
-                                        <span class="jobs">{{ person.completedShifts }} shifts done</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="candidate-right">
-                                <span class="applied-time">Applied {{ person.appliedTime }}</span>
-
-                                <div class="action-buttons">
-                                    <BaseButton variant="secondary" size="sm" @click.stop="handleReject(person.id)">Not Hire
-                                    </BaseButton>
-                                    <BaseButton variant="primary" size="sm" @click.stop="handleHire(person)">Hire
-                                    </BaseButton>
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-
-                </main>
-
-            </div>
+  <ManagerLayout>
+    <div class="page-container">
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Applicant Review</h1>
+          <p class="page-subtitle">Select an open shift to review candidates (real accounts).</p>
         </div>
+        <div class="stats-pill">
+          <strong>{{ openShifts.length }}</strong> Shifts Open
+        </div>
+      </header>
 
-        <CandidateProfileModal
-          :isOpen="isProfileModalOpen"
-          :candidate="selectedCandidate"
-          @close="isProfileModalOpen = false"
-          @hire="handleHire"
-          @reject="handleReject"
-        />
-    </ManagerLayout>
+      <p v-if="error" class="error">{{ error }}</p>
 
+      <div class="review-grid">
+        <aside class="shifts-column">
+          <h3>Open Shifts</h3>
+          <div v-if="openShifts.length === 0" class="muted">No open shifts right now.</div>
+
+          <button
+            v-for="s in openShifts"
+            :key="s.id"
+            class="shift-btn"
+            :class="{ active: s.id === selectedShiftId }"
+            @click="selectShift(s.id)"
+          >
+            <div class="shift-title">{{ s.role }}</div>
+            <div class="shift-meta">{{ s.date }} • {{ s.startTime }} - {{ s.endTime }}</div>
+          </button>
+        </aside>
+
+        <section class="candidates-column">
+          <h3 v-if="selectedShift">Applicants for {{ selectedShift.role }}</h3>
+
+          <div v-if="loadingApplicants">Loading applicants…</div>
+          <div v-else-if="!selectedShift" class="muted">Select a shift.</div>
+          <div v-else-if="applicants.length === 0" class="muted">No applicants yet.</div>
+
+          <div v-for="app in applicants" :key="app.id" class="candidate-card">
+            <div class="avatar">{{ (app.user.username || '?').charAt(0).toUpperCase() }}</div>
+            <div class="info">
+              <div class="name">{{ app.user.username }}</div>
+              <div class="meta">{{ app.user.email }} • {{ new Date(app.appliedAt).toLocaleString() }}</div>
+              <div class="meta">Status: {{ app.status }}</div>
+            </div>
+            <div class="actions">
+              <BaseButton variant="primary" @click="handleHire(app)" :disabled="app.status !== 'PENDING'">Hire</BaseButton>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </ManagerLayout>
 </template>
+
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue'
+import BaseButton from '../../components/shared/BaseButton.vue'
+import ManagerLayout from '../../components/manager/ManagerLayout.vue'
+import { useShiftStore } from '../../stores/shiftStore'
+
+const store = useShiftStore()
+
+const openShifts = computed(() => store.shifts.filter(s => s.status === 'OPEN'))
+
+const selectedShiftId = ref(null)
+const applicants = ref([])
+const loadingApplicants = ref(false)
+const error = ref('')
+
+const selectedShift = computed(() => openShifts.value.find(s => s.id === selectedShiftId.value))
+
+async function loadOpenShifts() {
+  await store.fetchManagerShifts()
+  if (!selectedShiftId.value && openShifts.value.length > 0) selectedShiftId.value = openShifts.value[0].id
+}
+
+async function loadApplicants() {
+  if (!selectedShiftId.value) return
+  loadingApplicants.value = true
+  error.value = ''
+  try {
+    applicants.value = await store.fetchApplicants(selectedShiftId.value)
+  } catch (e) {
+    error.value = e.message || 'Failed to load applicants'
+  } finally {
+    loadingApplicants.value = false
+  }
+}
+
+function selectShift(id) {
+  selectedShiftId.value = id
+}
+
+async function handleHire(app) {
+  if (!selectedShift.value) return
+  if (confirm(`Hire ${app.user.username} for the ${selectedShift.value.role} shift?`)) {
+    try {
+      await store.assignApplicant(selectedShiftId.value, app.id)
+      await loadOpenShifts()
+      await loadApplicants()
+      alert('Success! The worker has been assigned.')
+    } catch (e) {
+      alert(e.message || 'Failed to assign')
+    }
+  }
+}
+
+onMounted(async () => {
+  await loadOpenShifts()
+  await loadApplicants()
+})
+
+watch(selectedShiftId, loadApplicants)
+</script>
 
 <style scoped>
 /* Layout Structure */
@@ -381,4 +341,14 @@ const openCandidateProfile = (candidate) => {
     margin-top: 3rem;
     font-style: italic;
 }
+
+.error { color:#b00020; }
+.review-grid { display:grid; grid-template-columns: 280px 1fr; gap:16px; }
+.shift-btn { width:100%; text-align:left; padding:12px; border:1px solid #eee; border-radius:12px; background:#fff; margin-bottom:10px; }
+.shift-btn.active { outline: 2px solid #6b46c1; }
+.shift-title { font-weight:700; }
+.shift-meta, .muted { font-size: 13px; opacity:.8; }
+.candidate-card { display:flex; gap:12px; padding:12px; border:1px solid #eee; border-radius:12px; background:#fff; margin-bottom:10px; align-items:center; }
+.avatar { width:40px; height:40px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:#eef; font-weight:700; }
+.actions { margin-left:auto; }
 </style>

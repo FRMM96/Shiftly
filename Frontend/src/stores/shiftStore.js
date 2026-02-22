@@ -1,100 +1,132 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { apiFetch } from '../lib/api'
 import { useUserStore } from './userStore'
 
 export const useShiftStore = defineStore('shifts', () => {
-  // 1. STATE
-  const shifts = ref([
-    { 
-      id: 1, 
-      business: 'Stockholm Bar', 
-      role: 'Bartender', 
-      startTime: '18:00', 
-      endTime: '02:00', 
-      pay: '180 kr/h', 
-      date: '2026-01-27', 
-      status: 'open',
-      image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=500&q=60',
-      applicants: [] // <--- CRITICAL: Must initialize this to avoid crashes
-    }
-  ])
+  const shifts = ref([])
 
-  // 2. GETTERS
-  const openShifts = computed(() => shifts.value.filter(s => s.status === 'open'))
-  
+  const openShifts = computed(() => shifts.value.filter(s => s.status === 'OPEN'))
+
   const getShiftById = (id) => shifts.value.find(s => s.id == id)
 
+  // Shifts the current user applied to (from open shift list payload)
   const myApplications = computed(() => {
     const userStore = useUserStore()
     if (!userStore.user) return []
-    
-    return shifts.value.reduce((acc, shift) => {
-      // Safety check: Does the array exist?
-      if (!shift.applicants) return acc
-      
-      const myApplication = shift.applicants.find(a => a.email === userStore.user.email)
-      if (myApplication) {
-          acc.push({ ...shift, applicationStatus: myApplication.status })
-      }
-      return acc
-    }, [])
+
+    return shifts.value.filter(shift => Array.isArray(shift.applications) && shift.applications.length > 0)
   })
 
-  // 3. ACTIONS
-  
-  // --- Manager Actions ---
-  const addShift = (newShift) => {
-    shifts.value.push({
-      id: Date.now(),
-      status: 'open',
-      business: 'Stockholm Bar',
-      image: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=500&q=60',
-      applicants: [], // <--- Initialize empty array for new shifts
-      ...newShift
-    })
+  // --- Manager actions ---
+  async function fetchManagerShifts(params = {}) {
+    const q = new URLSearchParams(params).toString()
+    const res = await apiFetch(`/api/shifts${q ? `?${q}` : ''}`)
+    // Normalize for frontend components expecting `date` as YYYY-MM-DD
+    shifts.value = res.shifts.map(s => ({
+      ...s,
+      date: new Date(s.date).toISOString().slice(0, 10),
+      role: s.roleName, // backward-compat for components using `role`
+      applicants: undefined
+    }))
+    return shifts.value
   }
 
-  const updateShift = (updatedShift) => {
-    const index = shifts.value.findIndex(s => s.id === updatedShift.id)
-    if (index !== -1) {
-      shifts.value[index] = { ...shifts.value[index], ...updatedShift }
+  async function createShift(newShift) {
+    const body = {
+      business: newShift.business || 'Shiftly Business',
+      roleName: newShift.role || newShift.roleName,
+      date: newShift.date, // YYYY-MM-DD
+      startTime: newShift.startTime,
+      endTime: newShift.endTime,
+      pay: newShift.pay,
+      workerId: newShift.workerId || null,
+      status: newShift.status === 'open' || newShift.status === 'OPEN' ? 'OPEN' : 'ACTIVE'
     }
+    const res = await apiFetch('/api/shifts', { method: 'POST', body })
+    await fetchManagerShifts()
+    return res.shift
   }
 
-  const deleteShift = (id) => {
-    shifts.value = shifts.value.filter(s => s.id !== id)
-  }
-
-  // --- Worker Actions ---
-  const applyToShift = (shiftId, workerProfile) => {
-    const shift = shifts.value.find(s => s.id === shiftId)
-    
-    if (shift) {
-        // Ensure array exists
-        if (!shift.applicants) shift.applicants = []
-        
-        // Check for duplicates
-        const exists = shift.applicants.find(a => a.email === workerProfile.email)
-        
-        if (!exists) {
-            shift.applicants.push({
-                ...workerProfile,
-                appliedAt: new Date().toLocaleDateString(),
-                status: 'pending'
-            })
-        }
+  async function updateShift(updatedShift) {
+    const body = {
+      business: updatedShift.business,
+      roleName: updatedShift.role || updatedShift.roleName,
+      date: updatedShift.date,
+      startTime: updatedShift.startTime,
+      endTime: updatedShift.endTime,
+      pay: updatedShift.pay,
+      workerId: updatedShift.workerId,
+      status: updatedShift.status
     }
+    const res = await apiFetch(`/api/shifts/${updatedShift.id}`, { method: 'PATCH', body })
+    await fetchManagerShifts()
+    return res.shift
   }
 
-  // 4. RETURN EVERYTHING
-  return { 
-    shifts, 
-    openShifts, 
-    getShiftById, 
-    myApplications, // <--- Added
-    addShift, 
-    updateShift, 
+  async function deleteShift(id) {
+    await apiFetch(`/api/shifts/${id}`, { method: 'DELETE' })
+    await fetchManagerShifts()
+  }
+
+  async function publishShift(id) {
+    // Set to OPEN (and clear worker)
+    await apiFetch(`/api/shifts/${id}`, { method: 'PATCH', body: { status: 'OPEN', workerId: null } })
+    await fetchManagerShifts()
+  }
+
+  // --- Worker actions ---
+  async function fetchMarketplace() {
+    const res = await apiFetch('/api/marketplace/shifts')
+    shifts.value = res.shifts.map(s => ({
+      ...s,
+      date: new Date(s.date).toISOString().slice(0, 10),
+      role: s.roleName,
+    }))
+    return shifts.value
+  }
+
+  async function applyToShift(shiftId) {
+    await apiFetch(`/api/marketplace/shifts/${shiftId}/apply`, { method: 'POST' })
+    await fetchMarketplace()
+  }
+
+  async function fetchMyShifts() {
+    const res = await apiFetch('/api/shifts/me')
+    shifts.value = res.shifts.map(s => ({
+      ...s,
+      date: new Date(s.date).toISOString().slice(0, 10),
+      role: s.roleName
+    }))
+    return shifts.value
+  }
+
+  // --- Manager: applicants + assign ---
+  async function fetchApplicants(shiftId) {
+    const res = await apiFetch(`/api/marketplace/shifts/${shiftId}/applicants`)
+    return res.applicants
+  }
+
+  async function assignApplicant(shiftId, applicationId) {
+    const res = await apiFetch(`/api/marketplace/shifts/${shiftId}/assign`, { method: 'POST', body: { applicationId } })
+    await fetchManagerShifts()
+    return res
+  }
+
+  return {
+    shifts,
+    openShifts,
+    getShiftById,
+    myApplications,
+    fetchManagerShifts,
+    createShift,
+    updateShift,
     deleteShift,
-    applyToShift    // <--- Added
+    publishShift,
+    fetchMarketplace,
+    applyToShift,
+    fetchMyShifts,
+    fetchApplicants,
+    assignApplicant
   }
 })

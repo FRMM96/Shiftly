@@ -4,11 +4,26 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum Role {
   BOSS
   EMPLOYEE
+}
+
+enum ShiftStatus {
+  ACTIVE   // assigned + scheduled
+  OPEN     // published to marketplace
+  CANCELED
+  COMPLETED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
 }
 
 model User {
@@ -17,6 +32,55 @@ model User {
   username     String   @unique
   passwordHash String
   role         Role     @default(EMPLOYEE)
+
+  // Relations
+  managedShifts Shift[]          @relation("ManagerShifts")
+  assignedShifts Shift[]         @relation("WorkerShifts")
+  applications  ShiftApplication[]
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model Shift {
+  id        String      @id @default(cuid())
+  business  String
+  roleName  String
+  date      DateTime
+  startTime String
+  endTime   String
+  pay       String?
+  status    ShiftStatus @default(ACTIVE)
+
+  // Manager who created/published the shift
+  managerId String
+  manager   User @relation("ManagerShifts", fields: [managerId], references: [id])
+
+  // Worker assigned to the shift (nullable when OPEN)
+  workerId  String?
+  worker    User? @relation("WorkerShifts", fields: [workerId], references: [id])
+
+  applications ShiftApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@index([status])
+  @@index([managerId])
+  @@index([workerId])
+}
+
+model ShiftApplication {
+  id        String            @id @default(cuid())
+  shiftId   String
+  userId    String
+  status    ApplicationStatus @default(PENDING)
+  appliedAt DateTime          @default(now())
+
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([shiftId, userId]) // prevent duplicate applications
+  @@index([status])
 }

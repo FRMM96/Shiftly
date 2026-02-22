@@ -1,74 +1,57 @@
 <script setup>
-import { computed } from 'vue'
+import { onMounted } from 'vue'
 import WorkerLayout from '../../components/worker/WorkerLayout.vue'
 import BaseButton from '../../components/shared/BaseButton.vue'
 import MarketplaceCard from '../../components/shared/MarketplaceCard.vue' 
 import { useShiftStore } from '../../stores/shiftStore'
-import { useUserStore } from '../../stores/userStore'
 
 const shiftStore = useShiftStore()
-const userStore = useUserStore()
 
-// 1. ACTION: Handle the logic when user clicks Apply
-const handleApply = (shift) => {
-    // A. Check if user is logged in
-    if (!userStore.user) {
-        alert("Please log in to apply!")
-        return
-    }
+onMounted(() => {
+  shiftStore.fetchMarketplace()
+})
 
-    // B. Confirm intent
-    if (confirm(`Apply for ${shift.role} at ${shift.business}?`)) {
-        // C. Call the store
-        shiftStore.applyToShift(shift.id, userStore.user)
-        alert("Application Sent! You can track status in 'My Shifts'.")
+const handleApply = async (shift) => {
+  if (confirm(`Apply for ${shift.role} at ${shift.business}?`)) {
+    try {
+      await shiftStore.applyToShift(shift.id)
+      alert("Application Sent! Managers will see your real account in the applicant list.")
+    } catch (e) {
+      alert(e.message || 'Failed to apply')
     }
+  }
 }
 </script>
 
 <template>
-    <WorkerLayout>
-        
-        <div class="page-container">
-            
-            <div class="feed-header">
-                <h1>Find Work</h1>
-                <p>Pick up extra shifts nearby.</p>
-            </div>
+  <WorkerLayout>
+    <div class="page-container">
+      <div class="feed-header">
+        <h1>Find Work</h1>
+        <p>Pick up extra shifts nearby (requires login).</p>
+      </div>
 
-            <div class="filters">
-                <button class="filter-pill active">All</button>
-                <button class="filter-pill">High Pay</button>
-                <button class="filter-pill">This Week</button>
-            </div>
+      <div class="filters">
+        <button class="filter-pill active">All</button>
+      </div>
 
-            <div class="gig-list">
-                
-                <MarketplaceCard 
-                    v-for="shift in shiftStore.openShifts" 
-                    :key="shift.id" 
-                    :shift="shift"
-                >
-                    <template #actions>
-                        <BaseButton 
-                            variant="primary" 
-                            size="sm" 
-                            @click="handleApply(shift)"
-                        >
-                            Quick Apply
-                        </BaseButton>
-                    </template>
-                </MarketplaceCard>
-
-                <div v-if="shiftStore.openShifts.length === 0" class="empty-state">
-                    <p>No gigs available right now. Check back later! 😴</p>
-                </div>
-
-            </div>
-        </div>
-
-    </WorkerLayout>
+      <div class="gig-list">
+        <MarketplaceCard 
+          v-for="shift in shiftStore.openShifts" 
+          :key="shift.id" 
+          :shift="shift"
+        >
+          <template #actions>
+            <BaseButton variant="primary" size="sm" @click="handleApply(shift)">
+              Quick Apply
+            </BaseButton>
+          </template>
+        </MarketplaceCard>
+      </div>
+    </div>
+  </WorkerLayout>
 </template>
+
 
 <style scoped>
 /* Page Layout */
