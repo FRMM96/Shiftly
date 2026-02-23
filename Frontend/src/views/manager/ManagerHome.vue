@@ -93,7 +93,7 @@ const resolveSickIssue = (shiftId) => {
             store.publishShift(shiftId)
         }
     }
-  }
+  
 };
 
 const handleDaySelect = (day) => {

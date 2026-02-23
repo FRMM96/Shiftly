@@ -11,7 +11,27 @@
           <input type="email" id="email" v-model="email" placeholder="Enter your email" required />
 
           <label for="password">Password</label>
-          <input type="password" id="password" v-model="password" placeholder="Choose a password" required />
+          <input type="password" id="password" v-model="password" placeholder="Choose a password" :class="passwordMatchClass" required />
+
+          <label for="confirmPassword">Confirm Password</label>
+          <input type="password" id="confirmPassword" v-model="confirmPassword" placeholder="Confirm your password" :class="passwordMatchClass" required />
+
+          <label>Date of Birth</label>
+          <div class="dob-group">
+            <select v-model="dobYear" required>
+              <option value="" disabled>Year</option>
+              <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+            </select>
+            <select v-model="dobMonth" required>
+              <option value="" disabled>Month</option>
+              <option v-for="m in months" :key="m.value" :value="m.value">{{ m.text }}</option>
+            </select>
+            <select v-model="dobDay" required>
+              <option value="" disabled>Day</option>
+              <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
+            </select>
+            
+          </div>
 
           <label for="role">Account type</label>
           <select id="role" v-model="role">
@@ -42,18 +62,67 @@ export default {
       username: '',
       email: '',
       password: '',
+      confirmPassword: '',
+      dobDay: '',
+      dobMonth: '',
+      dobYear: '',
       role: 'EMPLOYEE',
       loading: false,
       error: ''
     }
   },
+  computed: {
+    passwordMatchClass() {
+      if (!this.password || !this.confirmPassword) return '';
+      return this.password === this.confirmPassword ? 'match' : 'mismatch';
+    },
+    years() {
+      const currentYear = new Date().getFullYear()
+      const years = []
+      for (let i = currentYear; i >= 1900; i--) {
+        years.push(i)
+      }
+      return years
+    },
+    days() {
+      const days = []
+      for (let i = 1; i <= 31; i++) {
+        days.push(i.toString().padStart(2, '0'))
+      }
+      return days
+    },
+    months() {
+      return [
+        { text: 'January', value: '01' },
+        { text: 'February', value: '02' },
+        { text: 'March', value: '03' },
+        { text: 'April', value: '04' },
+        { text: 'May', value: '05' },
+        { text: 'June', value: '06' },
+        { text: 'July', value: '07' },
+        { text: 'August', value: '08' },
+        { text: 'September', value: '09' },
+        { text: 'October', value: '10' },
+        { text: 'November', value: '11' },
+        { text: 'December', value: '12' },
+      ]
+    }
+  },
   methods: {
     async handleSignUp() {
+      if (this.password !== this.confirmPassword) {
+        this.error = 'Passwords do not match';
+        return;
+      }
+      
       const userStore = useUserStore()
       this.loading = true
       this.error = ''
+      
+      const dob = `${this.dobYear}-${this.dobMonth}-${this.dobDay}`
+      
       try {
-        await userStore.register({ email: this.email, username: this.username, password: this.password, role: this.role })
+        await userStore.register({ email: this.email, username: this.username, password: this.password, role: this.role, dob })
         if (userStore.user.role === 'BOSS') this.$router.push('/manager')
         else this.$router.push('/worker')
       } catch (e) {
@@ -68,7 +137,7 @@ export default {
 
 
 <style scoped>
-.login-page {
+.signup-page {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -77,7 +146,7 @@ export default {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-.login-container {
+.signup-container {
     background: #ffffff;
     padding: 40px;
     border-radius: 10px;
@@ -99,6 +168,16 @@ h1 {
     text-align: left;
 }
 
+.dob-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.dob-group select {
+    margin-bottom: 0;
+}
+
 label {
     display: block;
     margin-bottom: 8px;
@@ -108,7 +187,9 @@ label {
 }
 
 input[type="text"],
-input[type="password"] {
+input[type="email"],
+input[type="password"],
+select {
     width: 100%;
     padding: 12px;
     border: 1px solid #dddfe2;
@@ -117,13 +198,36 @@ input[type="password"] {
     box-sizing: border-box;
     /* Important for padding to be inside the width */
     transition: border-color 0.2s;
+    margin-bottom: 15px;
 }
 
 input[type="text"]:focus,
-input[type="password"]:focus {
+input[type="email"]:focus,
+input[type="password"]:focus,
+select:focus {
     outline: none;
     border-color: #007bff;
     box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+input[type="password"].match {
+    border-color: #28a745;
+    background-color: #f8fff9;
+}
+
+input[type="password"].match:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
+}
+
+input[type="password"].mismatch {
+    border-color: #dc3545;
+    background-color: #fff8f8;
+}
+
+input[type="password"].mismatch:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.25);
 }
 
 button {
@@ -143,22 +247,22 @@ button:hover {
     background-color: #0056b3;
 }
 
-.register-link {
+.login-link {
     margin-top: 24px;
     font-size: 14px;
 }
 
-.register-link p {
+.login-link p {
     color: #606770;
 }
 
-.register-link a {
+.login-link a {
     color: #007bff;
     text-decoration: none;
     font-weight: 500;
 }
 
-.register-link a:hover {
+.login-link a:hover {
     text-decoration: underline;
 }
 
