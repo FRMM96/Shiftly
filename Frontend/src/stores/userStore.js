@@ -10,11 +10,11 @@ export const useUserStore = defineStore('user', () => {
   const isBoss = computed(() => user.value?.role === 'BOSS')
   const isEmployee = computed(() => user.value?.role === 'EMPLOYEE')
 
-  async function register({ email, username, password, role }) {
+  async function register({ email, username, password, role, dob }) {
     const res = await apiFetch('/api/auth/register', {
       method: 'POST',
       auth: false,
-      body: { email, username, password, role }
+      body: { email, username, password, role, dob }
     })
     token.value = res.token
     setToken(res.token)
