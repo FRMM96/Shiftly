@@ -14,11 +14,34 @@
 
         <p v-if="error" class="error">{{ error }}</p>
 
+        <div class="forgot-link">
+          <a href="#" @click.prevent="showForgotModal = true">Forgot password?</a>
+        </div>
+
         <button type="submit" :disabled="loading">{{ loading ? 'Logging in…' : 'Login' }}</button>
       </form>
 
       <div class="register-link">
         <p>Don't have an account? <router-link to="/signup">Register here</router-link></p>
+      </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div v-if="showForgotModal" class="modal-overlay" @click.self="closeForgotModal">
+      <div class="modal-content">
+        <h2>Reset Password</h2>
+        <p>Enter your email address to receive a new password.</p>
+        <form @submit.prevent="handleForgotPassword">
+          <div class="form-group">
+            <input type="email" v-model="forgotEmail" placeholder="Email address" required />
+          </div>
+          <p v-if="forgotError" class="error">{{ forgotError }}</p>
+          <p v-if="forgotSuccess" class="success">{{ forgotSuccess }}</p>
+          <div class="modal-actions">
+            <button type="button" class="btn-cancel" @click="closeForgotModal" :disabled="forgotLoading">Cancel</button>
+            <button type="submit" class="btn-submit" :disabled="forgotLoading">{{ forgotLoading ? 'Sending...' : 'Send' }}</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -34,7 +57,12 @@ export default {
       emailOrUsername: '',
       password: '',
       loading: false,
-      error: ''
+      error: '',
+      showForgotModal: false,
+      forgotEmail: '',
+      forgotLoading: false,
+      forgotError: '',
+      forgotSuccess: ''
     }
   },
     methods: {
@@ -51,6 +79,31 @@ export default {
         this.error = e.message || 'Login failed'
       } finally {
         this.loading = false
+      }
+    },
+    closeForgotModal() {
+      this.showForgotModal = false;
+      this.forgotEmail = '';
+      this.forgotError = '';
+      this.forgotSuccess = '';
+    },
+    async handleForgotPassword() {
+      this.forgotLoading = true;
+      this.forgotError = '';
+      this.forgotSuccess = '';
+      
+      // Simulate an API call to send the email
+      try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        this.forgotSuccess = `A new password has been sent to ${this.forgotEmail}`;
+        // Optionally close modal after a delay
+        setTimeout(() => {
+          if (this.showForgotModal) this.closeForgotModal();
+        }, 3000);
+      } catch (e) {
+        this.forgotError = 'Failed to send password. Please try again.';
+      } finally {
+        this.forgotLoading = false;
       }
     }
   }
@@ -156,5 +209,110 @@ button:hover {
 
 .register-link a:hover {
     text-decoration: underline;
+}
+
+.forgot-link {
+    margin-bottom: 20px;
+    text-align: right;
+    font-size: 14px;
+}
+
+.forgot-link a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.forgot-link a:hover {
+    text-decoration: underline;
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 22px;
+    color: #1c1e21;
+}
+
+.modal-content p {
+    font-size: 14px;
+    color: #606770;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.modal-content input[type="email"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #dddfe2;
+    border-radius: 6px;
+    font-size: 16px;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+.modal-content input[type="email"]:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-actions button {
+    width: auto;
+    padding: 10px 20px;
+    font-size: 16px;
+}
+
+.btn-cancel {
+    background-color: #e4e6eb;
+    color: #4b4f56;
+}
+
+.btn-cancel:hover {
+    background-color: #d8dadf;
+}
+
+.btn-submit {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-submit:hover {
+    background-color: #0056b3;
+}
+
+.success {
+    margin: 10px 0;
+    color: #28a745;
+    font-size: 14px;
 }
 </style>
