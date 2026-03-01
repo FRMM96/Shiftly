@@ -45,6 +45,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+
   const userStore = useUserStore()
 
   // Hydrate session on refresh

@@ -3,8 +3,8 @@ import { ref, computed } from 'vue'
 import { apiFetch, setToken } from '../lib/api'
 
 export const useUserStore = defineStore('user', () => {
-  const user = ref(null)
-  const token = ref(localStorage.getItem('shiftly_token') || null)
+  const user = ref({ id: 999, username: 'test_worker', role: 'EMPLOYEE', firstName: 'Test', lastName: 'Worker' })
+  const token = ref('fake-token-for-css-testing')
 
   const isLoggedIn = computed(() => !!token.value && !!user.value)
   const isBoss = computed(() => user.value?.role === 'BOSS')
