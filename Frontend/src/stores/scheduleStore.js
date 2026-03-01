@@ -56,13 +56,38 @@ export const useScheduleStore = defineStore('schedule', () => {
   }
 
   // Placeholder actions (you can wire these later with real endpoints)
-  const requestTimeOff = (date, reason) => {
+  const requestTimeOff = (date, reason, time) => {
     console.log(`Requesting off for ${date}: ${reason}`)
+    mySchedule.value.push({
+      id: Date.now(),
+      date: date,
+      status: 'request_off',
+      reason: reason || 'Personal Time',
+      time: time || 'All Day'
+    })
   }
 
   const markSick = (date) => {
     console.log(`Marking sick for ${date}`)
+    mySchedule.value.push({
+      id: Date.now(),
+      date: date,
+      status: 'sick',
+      reason: 'Sick Leave',
+      time: 'All Day'
+    })
   }
 
-  return { mySchedule, getDayStatus, fetchMySchedule, requestTimeOff, markSick }
+  const updateTimeOff = (id, updatedData) => {
+    const index = mySchedule.value.findIndex(s => s.id === id)
+    if (index !== -1) {
+      mySchedule.value[index] = { ...mySchedule.value[index], ...updatedData }
+    }
+  }
+
+  const deleteTimeOff = (id) => {
+    mySchedule.value = mySchedule.value.filter(s => s.id !== id)
+  }
+
+  return { mySchedule, getDayStatus, fetchMySchedule, requestTimeOff, markSick, updateTimeOff, deleteTimeOff }
 })

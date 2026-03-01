@@ -3,6 +3,7 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 const isActive = (path) => route.path === path || (path !== '/worker' && route.path.startsWith(path))
+const isTabActive = (tab) => route.path === '/worker' && (route.query.tab === tab || (!route.query.tab && tab === 'schedule'))
 </script>
 
 <template>
@@ -10,8 +11,20 @@ const isActive = (path) => route.path === path || (path !== '/worker' && route.p
         <div class="logo">Radix <span class="badge">Worker</span></div>
 
         <nav class="nav-links">
-            <router-link to="/worker" class="nav-item" :class="{ active: isActive('/worker') }">
-                Dashboard
+            <router-link to="/worker?tab=schedule" class="nav-item" :class="{ active: isTabActive('schedule') }">
+                Schedule
+            </router-link>
+
+            <router-link to="/worker?tab=upcoming" class="nav-item" :class="{ active: isTabActive('upcoming') }">
+                Upcoming
+            </router-link>
+
+            <router-link to="/worker?tab=applications" class="nav-item" :class="{ active: isTabActive('applications') }">
+                Applications
+            </router-link>
+
+            <router-link to="/worker?tab=timeoff" class="nav-item" :class="{ active: isTabActive('timeoff') }">
+                Time Off
             </router-link>
 
             <router-link to="/worker/marketplace" class="nav-item" :class="{ active: isActive('/worker/marketplace') }">

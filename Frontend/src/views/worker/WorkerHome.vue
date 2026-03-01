@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { format, isSameDay } from 'date-fns' 
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 // 1. Components
 import WorkerLayout from '../../components/worker/WorkerLayout.vue'
@@ -16,6 +16,7 @@ import { useShiftStore } from '../../stores/shiftStore'
 import { useScheduleStore } from '../../stores/scheduleStore'
 
 const router = useRouter()
+const route = useRoute()
 const shiftStore = useShiftStore()
 const scheduleStore = useScheduleStore()
 
@@ -23,16 +24,34 @@ onMounted(() => {
   scheduleStore.fetchMySchedule()
 })
 
-const activeTab = ref('schedule')
+const activeTab = computed({
+    get: () => route.query.tab || 'schedule',
+    set: (val) => router.replace({ query: { tab: val } })
+})
 const isModalOpen = ref(false)
 const selectedDate = ref(null)
 const selectedDayShifts = ref([])
+
+const timeOffForm = ref({ date: '', type: 'timeoff', reason: '', startTime: '', endTime: '' })
+
+const timeOptions = []
+for (let i = 0; i < 24; i++) {
+  for (let j = 0; j < 60; j += 30) {
+    const hour = i.toString().padStart(2, '0')
+    const min = j.toString().padStart(2, '0')
+    timeOptions.push(`${hour}:${min}`)
+  }
+}
 
 const todayDateFormatted = computed(() => format(new Date(), 'EEEE, MMMM do, yyyy'))
 
 // 3. Stats Logic
 const upcomingShifts = computed(() => {
     return (scheduleStore.mySchedule || []).filter(s => s.status === 'active')
+})
+
+const timeOffShifts = computed(() => {
+    return (scheduleStore.mySchedule || []).filter(s => s.status === 'sick' || s.status === 'request_off')
 })
 
 const stats = computed(() => {
@@ -92,6 +111,29 @@ const handleDeleteTimeOff = (id) => {
     scheduleStore.deleteTimeOff(id)
     onDateClick({ dateObj: selectedDate.value })
 }
+
+const submitTimeOffForm = () => {
+    if (!timeOffForm.value.date) return alert('Please select a date.')
+    
+    let timeStr = null
+    if (timeOffForm.value.startTime && timeOffForm.value.endTime) {
+        timeStr = `${timeOffForm.value.startTime} - ${timeOffForm.value.endTime}`
+    } else if (timeOffForm.value.startTime) {
+        timeStr = `${timeOffForm.value.startTime}`
+    }
+
+    if (timeOffForm.value.type === 'sick') {
+        if (confirm(`Call in sick for ${timeOffForm.value.date}?`)) {
+            scheduleStore.markSick(timeOffForm.value.date)
+            timeOffForm.value = { date: '', type: 'timeoff', reason: '', startTime: '', endTime: '' }
+        }
+    } else {
+        if (confirm(`Request time off for ${timeOffForm.value.date}?`)) {
+            scheduleStore.requestTimeOff(timeOffForm.value.date, timeOffForm.value.reason, timeStr)
+            timeOffForm.value = { date: '', type: 'timeoff', reason: '', startTime: '', endTime: '' }
+        }
+    }
+}
 </script>
 
 <template>
@@ -119,29 +161,14 @@ const handleDeleteTimeOff = (id) => {
                     <span class="stat-number">{{ stats.pending }}</span>
                 </div>
                 <!-- Alert Card style for Sick Days if > 0 -->
-                <div class="stat-card" :class="{ 'alert-card': stats.sick > 0 }">
+                <div class="stat-card clickable-stat" :class="{ 'alert-card': stats.sick > 0 }" @click="activeTab = 'timeoff'">
                     <span class="stat-label">Sick Days</span>
                     <span class="stat-number">{{ stats.sick }}</span>
                 </div>
             </div>
 
-            <!-- Overview Section (Mirrors Manager 'Overview') -->
+            <!-- Overview Section -->
             <section class="section-area">
-                <div class="section-header">
-                    <!-- Tabs or Title -->
-                    <div class="tabs-header">
-                        <button class="tab-btn" :class="{ active: activeTab === 'schedule' }" @click="activeTab = 'schedule'">
-                            📅 Schedule
-                        </button>
-                        <button class="tab-btn" :class="{ active: activeTab === 'upcoming' }" @click="activeTab = 'upcoming'">
-                            📋 Upcoming
-                        </button>
-                        <button class="tab-btn" :class="{ active: activeTab === 'applications' }" @click="activeTab = 'applications'">
-                            ⏳ Applications
-                        </button>
-                    </div>
-                </div>
-
                 <div v-if="activeTab === 'schedule'" class="tab-content">
                     <WorkerCalendar :schedule="scheduleStore.mySchedule || []" @dateClick="onDateClick" />
                 </div>
@@ -166,7 +193,7 @@ const handleDeleteTimeOff = (id) => {
                     </div>
                 </div>
 
-                <div v-else class="tab-content">
+                <div v-else-if="activeTab === 'applications'" class="tab-content">
                     <div v-if="stats.pending === 0" class="empty-state">
                         No active applications found.
                     </div>
@@ -178,6 +205,61 @@ const handleDeleteTimeOff = (id) => {
                                 </span>
                             </template>
                         </MarketplaceCard>
+                    </div>
+                </div>
+
+                <div v-else-if="activeTab === 'timeoff'" class="tab-content">
+                    <div class="timeoff-form-container">
+                        <h3 class="mb-3">Submit New Request</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Type</label>
+                                <select v-model="timeOffForm.type" class="form-control">
+                                    <option value="timeoff">Request Time Off</option>
+                                    <option value="sick">Call In Sick</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Date</label>
+                                <input type="date" v-model="timeOffForm.date" class="form-control" />
+                            </div>
+                            <div class="form-group" v-if="timeOffForm.type === 'timeoff'">
+                                <label>Time (Optional)</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <select v-model="timeOffForm.startTime" class="form-control" style="flex: 1;">
+                                        <option value="">Start</option>
+                                        <option v-for="time in timeOptions" :key="'start-'+time" :value="time">{{ time }}</option>
+                                    </select>
+                                    <select v-model="timeOffForm.endTime" class="form-control" style="flex: 1;">
+                                        <option value="">End</option>
+                                        <option v-for="time in timeOptions" :key="'end-'+time" :value="time">{{ time }}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group" v-if="timeOffForm.type === 'timeoff'">
+                                <label>Reason</label>
+                                <input type="text" v-model="timeOffForm.reason" placeholder="Brief reason" class="form-control" />
+                            </div>
+                            <div class="form-group submit-group" style="display:flex; align-items:flex-end;">
+                                <BaseButton style="width:100%" @click="submitTimeOffForm" :disabled="!timeOffForm.date">
+                                    Submit Request
+                                </BaseButton>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 class="mt-4 mb-3">My Sick Days & Time Off</h3>
+                    <div v-if="timeOffShifts.length === 0" class="empty-state">
+                        No sick days or time off requested.
+                    </div>
+                    <div v-else class="list-grid">
+                        <ShiftCard v-for="shift in timeOffShifts" :key="shift.id" :shift="shift">
+                            <template #actions>
+                                <span class="status-badge" :class="shift.status">
+                                    {{ shift.status === 'sick' ? 'Sick' : 'Time Off' }}
+                                </span>
+                            </template>
+                        </ShiftCard>
                     </div>
                 </div>
 
@@ -319,9 +401,7 @@ const handleDeleteTimeOff = (id) => {
     background: white;
     padding: 1.5rem; /* Match Manager calendar padding context if needed */
     border: 1px solid #e2e8f0;
-    border-top: none;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
+    border-radius: 12px;
 }
 
 .empty-state {
@@ -355,4 +435,59 @@ const handleDeleteTimeOff = (id) => {
     background-color: #dcfce3;
     color: #16a34a;
 }
+
+.status-badge.sick {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.status-badge.request_off {
+    background-color: #ffedd5;
+    color: #ea580c;
+}
+
+/* Time Off Form */
+.timeoff-form-container {
+    background: #f8fafc;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    border: 1px solid #e2e8f0;
+}
+
+.form-grid {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.form-group {
+    flex: 1;
+    min-width: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.form-control {
+    padding: 0.6rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    outline: none;
+}
+
+.form-control:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.mb-3 { margin-bottom: 1rem; }
+.mt-4 { margin-top: 1.5rem; }
 </style>
