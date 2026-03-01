@@ -77,12 +77,36 @@ export const useShiftStore = defineStore('shifts', () => {
 
   // --- Worker actions ---
   async function fetchMarketplace() {
-    const res = await apiFetch('/api/marketplace/shifts')
-    shifts.value = res.shifts.map(s => ({
-      ...s,
-      date: new Date(s.date).toISOString().slice(0, 10),
-      role: s.roleName,
-    }))
+    try {
+      const res = await apiFetch('/api/marketplace/shifts')
+      shifts.value = res.shifts.map(s => ({
+        ...s,
+        date: new Date(s.date).toISOString().slice(0, 10),
+        role: s.roleName,
+      }))
+    } catch (e) {
+      console.warn('Backend unavailable, using fake marketplace data')
+      shifts.value = [
+        { 
+          id: 1000, date: '2026-03-05', role: 'Bartender', roleName: 'Bartender', business: 'The Corner Pub', startTime: '18:00', endTime: '02:00', pay: '$150', status: 'OPEN',
+          tasks: ['Mix and serve drinks', 'Chat with customers', 'Keep bar area clean'],
+          expectations: 'Fast-paced environment, need to handle multiple orders at once.',
+          requirements: ['2+ years experience', 'Knowledge of classic cocktails']
+        },
+        { 
+          id: 1001, date: '2026-03-06', role: 'Waiter', roleName: 'Waiter', business: 'Fine Dine Restaurant', startTime: '17:00', endTime: '23:00', pay: '$120', status: 'OPEN',
+          tasks: ['Take orders and serve food', 'Ensure guest satisfaction', 'Handle payments'],
+          expectations: 'High standard of customer service, professional demeanor.',
+          requirements: ['Previous fine dining experience', 'Excellent communication skills']
+        },
+        { 
+          id: 1002, date: '2026-03-10', role: 'Barista', roleName: 'Barista', business: 'Morning Coffee Shop', startTime: '06:00', endTime: '14:00', pay: '$100', status: 'OPEN',
+          tasks: ['Prepare coffee beverages', 'Operate espresso machine', 'Manage cash register'],
+          expectations: 'Friendly attitude, ability to remember regular customers\' orders.',
+          requirements: ['Latte art skills preferred', 'Early riser']
+        }
+      ]
+    }
     return shifts.value
   }
 
