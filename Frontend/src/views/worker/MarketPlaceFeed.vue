@@ -1,15 +1,30 @@
 <script setup>
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import WorkerLayout from '../../components/worker/WorkerLayout.vue'
 import BaseButton from '../../components/shared/BaseButton.vue'
 import MarketplaceCard from '../../components/shared/MarketplaceCard.vue' 
+import JobDetailsModal from '../../components/shared/JobDetailsModal.vue'
 import { useShiftStore } from '../../stores/shiftStore'
 
 const shiftStore = useShiftStore()
+const isDetailsModalOpen = ref(false)
+const selectedShift = ref(null)
 
 onMounted(() => {
   shiftStore.fetchMarketplace()
 })
+
+const openDetailsModal = (shift) => {
+  selectedShift.value = shift
+  isDetailsModalOpen.value = true
+}
+
+const handleModalApply = () => {
+  if (selectedShift.value) {
+    handleApply(selectedShift.value)
+    isDetailsModalOpen.value = false
+  }
+}
 
 const handleApply = async (shift) => {
   if (confirm(`Apply for ${shift.role} at ${shift.business}?`)) {
@@ -40,6 +55,7 @@ const handleApply = async (shift) => {
           v-for="shift in shiftStore.openShifts" 
           :key="shift.id" 
           :shift="shift"
+          @more-info="openDetailsModal"
         >
           <template #actions>
             <BaseButton variant="primary" size="sm" @click="handleApply(shift)">
@@ -48,6 +64,18 @@ const handleApply = async (shift) => {
           </template>
         </MarketplaceCard>
       </div>
+
+      <JobDetailsModal 
+        :isOpen="isDetailsModalOpen" 
+        :shift="selectedShift" 
+        @close="isDetailsModalOpen = false"
+      >
+        <template #action>
+          <BaseButton v-if="selectedShift" variant="primary" @click="handleModalApply">
+            Quick Apply
+          </BaseButton>
+        </template>
+      </JobDetailsModal>
     </div>
   </WorkerLayout>
 </template>
