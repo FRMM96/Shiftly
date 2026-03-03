@@ -114,17 +114,30 @@ export default {
         this.error = 'Passwords do not match';
         return;
       }
-      
+
       const userStore = useUserStore()
       this.loading = true
       this.error = ''
-      
+
       const dob = `${this.dobYear}-${this.dobMonth}-${this.dobDay}`
-      
+
       try {
-        await userStore.register({ email: this.email, username: this.username, password: this.password, role: this.role, dob })
-        if (userStore.user.role === 'BOSS') this.$router.push('/manager')
-        else this.$router.push('/worker')
+        await userStore.register({
+          email: this.email,
+          username: this.username,
+          password: this.password,
+          role: this.role,
+          dob
+        })
+
+        // IMPORTANT: force login after signup
+        userStore.logout()
+
+        // Redirect to login and prefill email/username
+        this.$router.push({
+          name: 'login',
+          query: { prefill: this.email || this.username, justSignedUp: '1' }
+        })
       } catch (e) {
         this.error = e.message || 'Sign up failed'
       } finally {

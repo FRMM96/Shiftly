@@ -1,24 +1,24 @@
 const prisma = require("../db/prisma");
 
 exports.listOpenShifts = async (req, res) => {
-  try {
-    const shifts = await prisma.shift.findMany({
-      where: { status: "OPEN" },
-      orderBy: [{ date: "asc" }, { startTime: "asc" }],
-      include: {
-        manager: { select: { id: true, email: true, username: true } },
-        applications: {
-          where: { userId: req.user.id },
-          select: { id: true, status: true },
-        },
-      },
-    });
+  const shifts = await prisma.shift.findMany({
+    where: { status: "OPEN" },
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    include: { manager: { select: { id: true, email: true, username: true } } },
+  });
+  res.json({ shifts });
+};
 
-    return res.json({ shifts });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Server error" });
-  }
+exports.applyToShift = async (req, res) => {
+  res.status(501).json({ message: "Not implemented yet" });
+};
+
+exports.listApplicants = async (req, res) => {
+  res.status(501).json({ message: "Not implemented yet" });
+};
+
+exports.assignApplicant = async (req, res) => {
+  res.status(501).json({ message: "Not implemented yet" });
 };
 
 exports.applyToShift = async (req, res) => {
