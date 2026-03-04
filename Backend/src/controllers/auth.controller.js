@@ -2,6 +2,8 @@ const prisma = require('../db/prisma')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 
+const MAX_BOSSES_PER_COMPANY = 3
+
 function signToken(user) {
   return jwt.sign(
     { userId: user.id, role: user.role },
@@ -10,12 +12,61 @@ function signToken(user) {
   )
 }
 
+function makeInviteCode(len = 10) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let out = ''
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)]
+  return out
+}
+
+async function createUniqueInviteCode() {
+  for (let i = 0; i < 10; i++) {
+    const code = makeInviteCode(10)
+    const exists = await prisma.company.findUnique({ where: { inviteCode: code } })
+    if (!exists) return code
+  }
+  throw new Error('Failed to generate invite code')
+}
+
 exports.register = async (req, res) => {
   try {
-    const { email, username, password, role } = req.body
+    const { email, username, password, role, inviteCode, companyName } = req.body
 
     if (!email || !username || !password || !role) {
       return res.status(400).json({ message: 'email, username, password, role are required' })
+    }
+
+    // company logic
+    let company = null
+
+    if (role === 'BOSS') {
+      if (companyName && String(companyName).trim()) {
+        // Boss creates a new company
+        const code = await createUniqueInviteCode()
+        company = await prisma.company.create({
+          data: { name: String(companyName).trim(), inviteCode: code }
+        })
+      } else {
+        // Boss joins existing company via inviteCode
+        if (!inviteCode) {
+          return res.status(400).json({ message: 'Managers must provide companyName OR inviteCode' })
+        }
+        company = await prisma.company.findUnique({ where: { inviteCode: String(inviteCode).trim() } })
+        if (!company) return res.status(400).json({ message: 'Invalid invite code' })
+      }
+
+      // manager limit
+      const bossCount = await prisma.user.count({
+        where: { companyId: company.id, role: 'BOSS' }
+      })
+      if (bossCount >= MAX_BOSSES_PER_COMPANY) {
+        return res.status(400).json({ message: 'Manager limit reached for this company' })
+      }
+    } else {
+      // EMPLOYEE must join via inviteCode
+      if (!inviteCode) return res.status(400).json({ message: 'Employees must provide an inviteCode' })
+      company = await prisma.company.findUnique({ where: { inviteCode: String(inviteCode).trim() } })
+      if (!company) return res.status(400).json({ message: 'Invalid invite code' })
     }
 
     const existing = await prisma.user.findFirst({
@@ -30,14 +81,26 @@ exports.register = async (req, res) => {
       data: {
         email,
         username,
-        passwordHash: hashed,  // ✅ correct field
-        role
+        passwordHash: hashed,
+        role,
+        companyId: company.id
       },
-      select: { id: true, email: true, username: true, role: true }
+      select: { id: true, email: true, username: true, role: true, companyId: true }
     })
 
     const token = signToken(user)
-    return res.status(201).json({ token, user })
+
+    // If boss created a company, return inviteCode so they can share it
+    const payload = {
+      token,
+      user,
+      company: { id: company.id, name: company.name }
+    }
+    if (role === 'BOSS' && companyName && String(companyName).trim()) {
+      payload.companyInviteCode = company.inviteCode
+    }
+
+    return res.status(201).json(payload)
   } catch (err) {
     console.error(err)
     return res.status(500).json({ message: 'Server error' })
@@ -56,15 +119,20 @@ exports.login = async (req, res) => {
     })
 
     if (!user) return res.status(401).json({ message: 'Invalid credentials' })
-    if (!user.passwordHash) {
-      return res.status(400).json({ message: 'This account has no passwordHash stored. Delete it and re-register.' })
-    }
+    if (!user.passwordHash) return res.status(400).json({ message: 'Account has no passwordHash stored' })
 
     const ok = await bcrypt.compare(password, user.passwordHash)
     if (!ok) return res.status(401).json({ message: 'Invalid credentials' })
 
-    const safeUser = { id: user.id, email: user.email, username: user.username, role: user.role }
+    const safeUser = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      companyId: user.companyId
+    }
     const token = signToken(safeUser)
+
     return res.json({ token, user: safeUser })
   } catch (err) {
     console.error(err)

@@ -1,18 +1,17 @@
 const prisma = require("../db/prisma");
 
 function parseDateOnlyToUTC(dateStr) {
-  // Accepts YYYY-MM-DD and returns a Date at 00:00:00Z (stable across timezones)
   const [y, m, d] = String(dateStr).split("-").map(Number);
   if (!y || !m || !d) return null;
   return new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
 }
 
-async function assertEmployeeExists(workerId) {
+async function assertEmployeeExistsInMyCompany(workerId, companyId) {
   if (!workerId) return null;
 
   const u = await prisma.user.findUnique({
     where: { id: workerId },
-    select: { id: true, role: true, email: true, username: true },
+    select: { id: true, role: true, companyId: true, email: true, username: true },
   });
 
   if (!u) {
@@ -27,35 +26,31 @@ async function assertEmployeeExists(workerId) {
     throw err;
   }
 
+  if (u.companyId !== companyId) {
+    const err = new Error("workerId must belong to your company");
+    err.statusCode = 400;
+    throw err;
+  }
+
   return u;
 }
 
 exports.createShift = async (req, res) => {
   try {
-    const {
-      business,
-      roleName,
-      date,
-      startTime,
-      endTime,
-      pay,
-      workerId, // <-- this should be a REAL user account id (EMPLOYEE)
-      status,
-    } = req.body;
+    const { business, roleName, date, startTime, endTime, pay, workerId, status } = req.body;
 
     if (!business || !roleName || !date || !startTime || !endTime) {
-      return res
-        .status(400)
-        .json({ message: "business, roleName, date, startTime, endTime required" });
+      return res.status(400).json({ message: "business, roleName, date, startTime, endTime required" });
     }
 
     const dt = parseDateOnlyToUTC(date);
     if (!dt) return res.status(400).json({ message: "Invalid date (expected YYYY-MM-DD)" });
 
-    // Validate workerId only if provided and shift is not OPEN
     const willBeOpen = status === "OPEN";
+
+    // validate worker is EMPLOYEE + same company when assigned
     if (!willBeOpen && workerId) {
-      await assertEmployeeExists(workerId);
+      await assertEmployeeExistsInMyCompany(workerId, req.user.companyId);
     }
 
     const shift = await prisma.shift.create({
@@ -67,12 +62,11 @@ exports.createShift = async (req, res) => {
         endTime,
         pay: pay || null,
 
-        // If OPEN => no worker assigned
         status: willBeOpen ? "OPEN" : "ACTIVE",
 
         managerId: req.user.id,
+        companyId: req.user.companyId, // ✅ important
 
-        // If OPEN => force null, else assign real employee if provided
         workerId: willBeOpen ? null : (workerId || null),
       },
       include: {
@@ -83,22 +77,19 @@ exports.createShift = async (req, res) => {
     return res.status(201).json({ shift });
   } catch (err) {
     console.error(err);
-    return res
-      .status(err.statusCode || 500)
-      .json({ message: err.message || "Server error" });
+    return res.status(err.statusCode || 500).json({ message: err.message || "Server error" });
   }
 };
 
 exports.listManagerShifts = async (req, res) => {
   try {
-    const { from, to } = req.query; // YYYY-MM-DD (optional)
-    const where = { managerId: req.user.id };
+    const { from, to } = req.query;
+    const where = { managerId: req.user.id, companyId: req.user.companyId }; // ✅ scoped
 
     if (from || to) {
       where.date = {};
       if (from) where.date.gte = parseDateOnlyToUTC(from);
       if (to) {
-        // include end date by adding 1 day
         const end = parseDateOnlyToUTC(to);
         if (end) end.setUTCDate(end.getUTCDate() + 1);
         where.date.lt = end;
@@ -127,7 +118,11 @@ exports.listManagerShifts = async (req, res) => {
 exports.listMyShifts = async (req, res) => {
   try {
     const shifts = await prisma.shift.findMany({
-      where: { workerId: req.user.id, status: { not: "CANCELED" } },
+      where: {
+        workerId: req.user.id,
+        companyId: req.user.companyId, // ✅ extra safety
+        status: { not: "CANCELED" },
+      },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
       include: {
         manager: { select: { id: true, email: true, username: true } },
@@ -155,7 +150,11 @@ exports.getShift = async (req, res) => {
 
     if (!shift) return res.status(404).json({ message: "Shift not found" });
 
-    // Authorization: manager can see their shifts; worker can see their assigned shifts
+    // ✅ Company gate FIRST
+    if (shift.companyId !== req.user.companyId) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     if (req.user.role === "BOSS" && shift.managerId !== req.user.id) {
       return res.status(403).json({ message: "Forbidden" });
     }
@@ -176,6 +175,9 @@ exports.updateShift = async (req, res) => {
 
     const existing = await prisma.shift.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: "Shift not found" });
+
+    // ✅ company + manager check
+    if (existing.companyId !== req.user.companyId) return res.status(403).json({ message: "Forbidden" });
     if (existing.managerId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
 
     const { business, roleName, date, startTime, endTime, pay, workerId, status } = req.body;
@@ -186,24 +188,19 @@ exports.updateShift = async (req, res) => {
     if (startTime !== undefined) data.startTime = startTime;
     if (endTime !== undefined) data.endTime = endTime;
     if (pay !== undefined) data.pay = pay || null;
-
-    // status update
     if (status !== undefined) data.status = status;
 
-    // date update
     if (date !== undefined) {
       const dt = parseDateOnlyToUTC(date);
       if (!dt) return res.status(400).json({ message: "Invalid date (expected YYYY-MM-DD)" });
       data.date = dt;
     }
 
-    // worker update (validate if provided)
     if (workerId !== undefined) {
       if (workerId) {
-        await assertEmployeeExists(workerId);
+        await assertEmployeeExistsInMyCompany(workerId, req.user.companyId);
         data.workerId = workerId;
 
-        // If a worker is assigned, force ACTIVE (prevents OPEN+worker)
         if (data.status === "OPEN") data.status = "ACTIVE";
         if (data.status === undefined) data.status = "ACTIVE";
       } else {
@@ -211,7 +208,6 @@ exports.updateShift = async (req, res) => {
       }
     }
 
-    // If explicitly set OPEN, worker must be null (always)
     if (data.status === "OPEN") data.workerId = null;
 
     const shift = await prisma.shift.update({
@@ -225,9 +221,7 @@ exports.updateShift = async (req, res) => {
     return res.json({ shift });
   } catch (err) {
     console.error(err);
-    return res
-      .status(err.statusCode || 500)
-      .json({ message: err.message || "Server error" });
+    return res.status(err.statusCode || 500).json({ message: err.message || "Server error" });
   }
 };
 
@@ -237,6 +231,9 @@ exports.deleteShift = async (req, res) => {
 
     const existing = await prisma.shift.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: "Shift not found" });
+
+    // ✅ company + manager check
+    if (existing.companyId !== req.user.companyId) return res.status(403).json({ message: "Forbidden" });
     if (existing.managerId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
 
     await prisma.shift.delete({ where: { id } });
