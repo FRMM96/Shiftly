@@ -7,16 +7,56 @@ function parseDateOnlyToUTC(dateStr) {
   return new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
 }
 
+async function assertEmployeeExists(workerId) {
+  if (!workerId) return null;
+
+  const u = await prisma.user.findUnique({
+    where: { id: workerId },
+    select: { id: true, role: true, email: true, username: true },
+  });
+
+  if (!u) {
+    const err = new Error("Worker not found");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (u.role !== "EMPLOYEE") {
+    const err = new Error("workerId must belong to an EMPLOYEE account");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return u;
+}
+
 exports.createShift = async (req, res) => {
   try {
-    const { business, roleName, date, startTime, endTime, pay, workerId, status } = req.body;
+    const {
+      business,
+      roleName,
+      date,
+      startTime,
+      endTime,
+      pay,
+      workerId, // <-- this should be a REAL user account id (EMPLOYEE)
+      status,
+    } = req.body;
 
     if (!business || !roleName || !date || !startTime || !endTime) {
-      return res.status(400).json({ message: "business, roleName, date, startTime, endTime required" });
+      return res
+        .status(400)
+        .json({ message: "business, roleName, date, startTime, endTime required" });
     }
 
     const dt = parseDateOnlyToUTC(date);
     if (!dt) return res.status(400).json({ message: "Invalid date (expected YYYY-MM-DD)" });
+
+    // Validate workerId only if provided and shift is not OPEN
+    const willBeOpen = status === "OPEN";
+    if (!willBeOpen && workerId) {
+      await assertEmployeeExists(workerId);
+    }
 
     const shift = await prisma.shift.create({
       data: {
@@ -26,9 +66,14 @@ exports.createShift = async (req, res) => {
         startTime,
         endTime,
         pay: pay || null,
-        status: status === "OPEN" ? "OPEN" : "ACTIVE",
+
+        // If OPEN => no worker assigned
+        status: willBeOpen ? "OPEN" : "ACTIVE",
+
         managerId: req.user.id,
-        workerId: status === "OPEN" ? null : (workerId || null),
+
+        // If OPEN => force null, else assign real employee if provided
+        workerId: willBeOpen ? null : (workerId || null),
       },
       include: {
         worker: { select: { id: true, email: true, username: true } },
@@ -38,7 +83,9 @@ exports.createShift = async (req, res) => {
     return res.status(201).json({ shift });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error" });
+    return res
+      .status(err.statusCode || 500)
+      .json({ message: err.message || "Server error" });
   }
 };
 
@@ -139,16 +186,32 @@ exports.updateShift = async (req, res) => {
     if (startTime !== undefined) data.startTime = startTime;
     if (endTime !== undefined) data.endTime = endTime;
     if (pay !== undefined) data.pay = pay || null;
-    if (status !== undefined) data.status = status;
-    if (workerId !== undefined) data.workerId = workerId || null;
 
+    // status update
+    if (status !== undefined) data.status = status;
+
+    // date update
     if (date !== undefined) {
       const dt = parseDateOnlyToUTC(date);
       if (!dt) return res.status(400).json({ message: "Invalid date (expected YYYY-MM-DD)" });
       data.date = dt;
     }
 
-    // If set OPEN, worker must be null
+    // worker update (validate if provided)
+    if (workerId !== undefined) {
+      if (workerId) {
+        await assertEmployeeExists(workerId);
+        data.workerId = workerId;
+
+        // If a worker is assigned, force ACTIVE (prevents OPEN+worker)
+        if (data.status === "OPEN") data.status = "ACTIVE";
+        if (data.status === undefined) data.status = "ACTIVE";
+      } else {
+        data.workerId = null;
+      }
+    }
+
+    // If explicitly set OPEN, worker must be null (always)
     if (data.status === "OPEN") data.workerId = null;
 
     const shift = await prisma.shift.update({
@@ -162,7 +225,9 @@ exports.updateShift = async (req, res) => {
     return res.json({ shift });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error" });
+    return res
+      .status(err.statusCode || 500)
+      .json({ message: err.message || "Server error" });
   }
 };
 

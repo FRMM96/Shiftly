@@ -1,18 +1,37 @@
-const router = require("express").Router();
-const auth = require("../middleware/auth.middleware");
-const requireRole = require("../middleware/role.middleware");
-const {
-  listOpenShifts,
-  applyToShift,
-  listApplicants,
-  assignApplicant,
-} = require("../controllers/marketplace.controller");
+// Backend/src/routes/marketplace.routes.js
+const express = require("express");
+const router = express.Router();
 
-router.get("/shifts", auth, listOpenShifts);
-router.post("/shifts/:id/apply", auth, requireRole("EMPLOYEE"), applyToShift);
+const { requireAuth } = require("../middleware/auth.middleware");
+const { requireRole } = require("../middleware/role.middleware");
 
-// Boss-only
-router.get("/shifts/:id/applicants", auth, requireRole("BOSS"), listApplicants);
-router.post("/shifts/:id/assign", auth, requireRole("BOSS"), assignApplicant);
+const marketplaceController = require("../controllers/marketplace.controller");
+
+// List open shifts (any logged-in user)
+router.get("/shifts", requireAuth, marketplaceController.listOpenShifts);
+
+// Employee applies to a shift
+router.post(
+  "/shifts/:id/apply",
+  requireAuth,
+  requireRole("EMPLOYEE"),
+  marketplaceController.applyToShift
+);
+
+// Manager views applicants for a shift
+router.get(
+  "/shifts/:id/applicants",
+  requireAuth,
+  requireRole("BOSS"),
+  marketplaceController.listApplicants
+);
+
+// Manager assigns a shift to an applicant
+router.post(
+  "/shifts/:id/assign",
+  requireAuth,
+  requireRole("BOSS"),
+  marketplaceController.assignApplicant
+);
 
 module.exports = router;

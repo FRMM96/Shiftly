@@ -42,6 +42,8 @@
             <button type="submit" class="btn-submit" :disabled="forgotLoading">{{ forgotLoading ? 'Sending...' : 'Send' }}</button>
           </div>
         </form>
+        <p v-if="error" class="error">{{ error }}</p>
+        <p v-if="info" class="info">{{ info }}</p>
       </div>
     </div>
   </div>
@@ -64,6 +66,12 @@ export default {
       forgotError: '',
       forgotSuccess: ''
     }
+  },
+  mounted() {
+    const prefill = this.$route.query.prefill
+    const justSignedUp = this.$route.query.justSignedUp === '1'
+    if (prefill) this.emailOrUsername = String(prefill)
+    if (justSignedUp) this.info = 'Account created. Please log in with your new details.'
   },
     methods: {
     async handleLogin() {
@@ -314,5 +322,10 @@ button:hover {
     margin: 10px 0;
     color: #28a745;
     font-size: 14px;
+}
+.info {
+  margin: 10px 0;
+  color: #0f766e;
+  font-size: 14px;
 }
 </style>

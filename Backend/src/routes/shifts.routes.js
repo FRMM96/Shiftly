@@ -1,6 +1,9 @@
-const router = require("express").Router();
-const auth = require("../middleware/auth.middleware");
-const requireRole = require("../middleware/role.middleware");
+const express = require("express");
+const router = express.Router();
+
+const { requireAuth } = require("../middleware/auth.middleware");
+const { requireRole } = require("../middleware/role.middleware");
+
 const {
   createShift,
   listManagerShifts,
@@ -8,18 +11,18 @@ const {
   getShift,
   updateShift,
   deleteShift,
-} = require("../controllers/shifts.controller");
+} = require("../controllers/shift.controller");
 
-// Boss (manager) endpoints
-router.post("/", auth, requireRole("BOSS"), createShift);
-router.get("/", auth, requireRole("BOSS"), listManagerShifts);
-router.patch("/:id", auth, requireRole("BOSS"), updateShift);
-router.delete("/:id", auth, requireRole("BOSS"), deleteShift);
+// Worker (must be before "/:id")
+router.get("/me", requireAuth, requireRole("EMPLOYEE"), listMyShifts);
 
-// Employee endpoints
-router.get("/me", auth, requireRole("EMPLOYEE"), listMyShifts);
+// Manager
+router.post("/", requireAuth, requireRole("BOSS"), createShift);
+router.get("/", requireAuth, requireRole("BOSS"), listManagerShifts);
+router.patch("/:id", requireAuth, requireRole("BOSS"), updateShift);
+router.delete("/:id", requireAuth, requireRole("BOSS"), deleteShift);
 
-// Shared
-router.get("/:id", auth, getShift);
+// Shared view (manager can view own; worker can view assigned)
+router.get("/:id", requireAuth, getShift);
 
 module.exports = router;

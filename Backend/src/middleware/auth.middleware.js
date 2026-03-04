@@ -1,27 +1,29 @@
-const jwt = require("jsonwebtoken");
-const prisma = require("../db/prisma");
+// Backend/src/middleware/auth.middleware.js
+const jwt = require('jsonwebtoken')
+const prisma = require('../db/prisma')
 
-module.exports = async function authMiddleware(req, res, next) {
+async function requireAuth(req, res, next) {
   try {
-    const header = req.headers.authorization || "";
-    const [type, token] = header.split(" ");
+    const header = req.headers.authorization || ''
+    const [type, token] = header.split(' ')
 
-    if (type !== "Bearer" || !token) {
-      return res.status(401).json({ message: "Missing token" });
+    if (type !== 'Bearer' || !token) {
+      return res.status(401).json({ message: 'Not authenticated' })
     }
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-
+    const payload = jwt.verify(token, process.env.JWT_SECRET)
     const user = await prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: { id: true, email: true, username: true, role: true },
-    });
+      where: { id: payload.userId },
+      select: { id: true, email: true, username: true, role: true }
+    })
 
-    if (!user) return res.status(401).json({ message: "Invalid token" });
+    if (!user) return res.status(401).json({ message: 'Not authenticated' })
 
-    req.user = user;
-    next();
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
+    req.user = user
+    next()
+  } catch (e) {
+    return res.status(401).json({ message: 'Not authenticated' })
   }
-};
+}
+
+module.exports = { requireAuth }

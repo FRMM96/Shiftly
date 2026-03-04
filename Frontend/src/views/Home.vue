@@ -6,113 +6,33 @@ const router = useRouter()
 const goToLogin = () => {
     router.push('/login')
 }
+
+const goToSignup = () => {
+    router.push('/signup')
+}
 </script>
 
 <template>
     <div class="landing-container">
+     
         <nav class="sticky-nav">
             <div class="nav-content">
                 <div class="logo">Shiftly</div>
                 <button @click="goToLogin" class="nav-login-btn"> LOG IN</button>
-                <button @click="goToLogin" class="nav-create-btn"> CREATE ACCOUNT</button>
+                <button @click="goToSignup" class="nav-create-btn"> CREATE ACCOUNT</button>
             </div>
         </nav>
-        <section class="hero-split">
-            <div class="split-side manager-side">
-                <div class="content-wrapper">
-                    <h1 class="hero-title">Stop worrying about empty shifts.</h1>
-                    <ol class="hero-bullets">
-                        <li>⚡ <strong>Fill Shifts Fast:</strong> Cover sick calls in under 60 seconds.</li> <br>
-                        <li>📅 <strong>Smart Rosters:</strong> Manage your entire team in one view.</li> <br>
-                        <li>⭐ <strong>Verified Staff:</strong> Hire rated professionals you can trust.</li> <br>
-                    </ol>
-                    <button @click="goToLogin" class="btn btn-manager"> Manager LOG IN </button>
+
+        <div class="hero-section">
+            <div class="hero-content">
+                <h1>Get Shifts. Get Paid.<br />No hassle.</h1>
+                <p>Shiftly makes it easy to manage schedules and pick up extra shifts.</p>
+                <div class="hero-buttons">
+                    <button @click="goToLogin" class="primary-btn">LOG IN</button>
+                    <button @click="goToSignup" class="secondary-btn">CREATE ACCOUNT</button>
                 </div>
             </div>
-
-            <div class="split-side worker-side">
-                <div class="content-wrapper">
-                    <h1 class="hero-title text-dark">Work on your terms.</h1>
-                    <ol class="hero-bullets text-dark">
-                        <li>💸 <strong>Instant Pay:</strong> High-paying gigs sent to your phone.</li> <br>
-                        <li>⏰ <strong>Total Freedom:</strong> No minimum hours, work when you want.</li> <br>
-                        <li>🚀 <strong>Instant Booking:</strong> No interviews, just click and work.</li> <br>
-                    </ol>
-                    <button @click="goToLogin" class="btn btn-worker"> Staff LOG IN</button>
-                </div>
-            </div>
-        </section>
-
-        <section class="trust-bar">
-            <p>Trusted by <strong>500+ Businesses</strong> to fill <strong>10,000+ Shifts</strong> this month.</p>
-            <div class="trust-icons">
-                <span>🍽️ Restaurants</span>
-                <span>☕ Cafes</span>
-                <span>🏷️ Retail</span>
-            </div>
-        </section>
-
-        <section class="how-it-works">
-            <h2 class="section-title">The 3-Step Shift Solution</h2>
-            <div class="steps-grid">
-                <div class="step-card">
-                    <div class="icon-circle red-icon">📅</div>
-                    <h3>1. The Gap Opens</h3>
-                    <p>A staff member reports sick, or Manager post an open shift.</p>
-                </div>
-                <div class="arrow">➜</div>
-                <div class="step-card">
-                    <div class="icon-circle blue-icon">📲</div>
-                    <h3>2. Shiftly Alerts</h3>
-                    <p>We show and notify available workers nearby.</p>
-                </div>
-                <div class="arrow">➜</div>
-                <div class="step-card">
-                    <div class="icon-circle green-icon">🤝</div>
-                    <h3>3. Shift Filled</h3>
-                    <p>A worker accepts instantly. Your roster is updated.</p>
-                </div>
-            </div>
-        </section>
-
-        <section class="value-trio">
-            <div class="value-card">
-                <h3>For Business Owners</h3>
-                <ul>
-                    <li>✅ Instant sick-call coverage</li>
-                    <li>✅ Single view of all staff</li>
-                    <li>✅ Verified worker ratings</li>
-                </ul>
-            </div>
-            <div class="value-card">
-                <h3>For Current Staff</h3>
-                <ul>
-                    <li>✅ Know when you're working</li>
-                    <li>✅ Report sickness easily</li>
-                    <li>✅ Swap shifts with team</li>
-                </ul>
-            </div>
-            <div class="value-card highlight">
-                <h3>For Shift Seekers</h3>
-                <ul>
-                    <li>✅ Instant paying gigs</li>
-                    <li>✅ No minimum commitment</li>
-                    <li>✅ Fast, transparent pay</li>
-                </ul>
-            </div>
-        </section>
-
-        <footer class="footer">
-            <div class="footer-content">
-                <div class="logo">Shiftly</div>
-                <div class="footer-links">
-                    <a @click="goToLogin">Log In</a>
-                    <a href="#">Privacy</a>
-                    <a href="#">Terms</a>
-                </div>
-            </div>
-        </footer>
-
+        </div>
     </div>
 </template>
 

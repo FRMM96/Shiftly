@@ -3,8 +3,11 @@ import { ref, computed } from 'vue'
 import { apiFetch, setToken } from '../lib/api'
 
 export const useUserStore = defineStore('user', () => {
+
+  // Session state
+  const token = ref(typeof window !== 'undefined' ? localStorage.getItem('shiftly_token') : null)
   const user = ref(null)
-  const token = ref(localStorage.getItem('shiftly_token') || null)
+
 
   const isLoggedIn = computed(() => !!token.value && !!user.value)
   const isBoss = computed(() => user.value?.role === 'BOSS')
@@ -47,19 +50,51 @@ export const useUserStore = defineStore('user', () => {
     setToken(null)
   }
 
+  /**
+   * Boss-only: fetch REAL users from the database.
+   * Use: await userStore.fetchEmployees()
+   */
+  async function fetchEmployees() {
+    const res = await apiFetch('/api/users?role=EMPLOYEE', { method: 'GET', auth: true })
+    return res.users || []
+  }
+
+  // UI helpers (client-only)
   const toggleSkill = (skill) => {
-    if (!user.value.skills) user.value.skills = []
+    if (!user.value) return
+    if (!Array.isArray(user.value.skills)) user.value.skills = []
     const idx = user.value.skills.indexOf(skill)
     if (idx > -1) user.value.skills.splice(idx, 1)
     else user.value.skills.push(skill)
   }
 
   const updateProfile = (data) => {
+    if (!user.value) return
     user.value = { ...user.value, ...data }
   }
 
-  // Helper: check if user qualifies for a shift (simple match on roleName)
-  const hasSkill = (requiredRole) => true // Placeholder: extend with real skills if you add them to backend
+  // Simple helper: match shift roleName against user's skills (if present)
+  const hasSkill = (requiredRole) => {
+    if (!user.value) return false
+    if (!requiredRole) return true
+    const skills = user.value.skills
+    if (!Array.isArray(skills)) return true // if backend doesn't store skills yet, don't block
+    return skills.some(s => String(s).toLowerCase() === String(requiredRole).toLowerCase())
+  }
 
-  return { user, token, isLoggedIn, isBoss, isEmployee, register, login, fetchMe, logout, toggleSkill, updateProfile, hasSkill }
+  return {
+    user,
+    token,
+    isLoggedIn,
+    isBoss,
+    isEmployee,
+    register,
+    login,
+    fetchMe,
+    logout,
+    fetchEmployees,   
+    toggleSkill,
+    updateProfile,
+    hasSkill
+  }
 })
