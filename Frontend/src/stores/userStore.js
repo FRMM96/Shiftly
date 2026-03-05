@@ -13,17 +13,17 @@ export const useUserStore = defineStore('user', () => {
   const isBoss = computed(() => user.value?.role === 'BOSS')
   const isEmployee = computed(() => user.value?.role === 'EMPLOYEE')
 
-  async function register({ email, username, password, role, dob }) {
-    const res = await apiFetch('/api/auth/register', {
-      method: 'POST',
-      auth: false,
-      body: { email, username, password, role, dob }
-    })
-    token.value = res.token
-    setToken(res.token)
-    user.value = res.user
-    return res
-  }
+  async function register({ email, username, password, role, inviteCode, companyName }) {
+  const res = await apiFetch('/api/auth/register', {
+    method: 'POST',
+    auth: false,
+    body: { email, username, password, role, inviteCode, companyName }
+  })
+  token.value = res.token
+  setToken(res.token)
+  user.value = res.user
+  return res
+}
 
   async function login({ emailOrUsername, password }) {
     const res = await apiFetch('/api/auth/login', {

@@ -38,6 +38,34 @@
             <option value="EMPLOYEE">Employee</option>
             <option value="BOSS">Manager</option>
           </select>
+                    <!-- Company / Invite -->
+          <div v-if="role === 'BOSS'" class="form-group">
+            <label>Company name (create new company)</label>
+            <input
+              v-model="companyName"
+              type="text"
+              placeholder="e.g. IKEA Gothenburg"
+            />
+
+            <p style="margin: 6px 0; color: #606770; text-align:center;">OR</p>
+
+            <label>Invite code (join existing company)</label>
+            <input
+              v-model="inviteCode"
+              type="text"
+              placeholder="Invite code"
+            />
+          </div>
+
+          <div v-else class="form-group">
+            <label>Invite code (required for employees)</label>
+            <input
+              v-model="inviteCode"
+              type="text"
+              placeholder="Invite code"
+              required
+            />
+          </div>
         </div>
 
         <p v-if="error" class="error">{{ error }}</p>
@@ -68,7 +96,9 @@ export default {
       dobYear: '',
       role: 'EMPLOYEE',
       loading: false,
-      error: ''
+      error: '',
+      inviteCode: '',
+      companyName: '',
     }
   },
   computed: {
@@ -120,20 +150,24 @@ export default {
       this.error = ''
 
       const dob = `${this.dobYear}-${this.dobMonth}-${this.dobDay}`
-
       try {
-        await userStore.register({
+        const res = await userStore.register({
           email: this.email,
           username: this.username,
           password: this.password,
           role: this.role,
+          inviteCode: this.inviteCode,
+          companyName: this.companyName,
           dob
         })
 
-        // IMPORTANT: force login after signup
+        if (res?.companyInviteCode) {
+          alert(`Company invite code: ${res.companyInviteCode}`)
+        }
+
+        // force login after signup
         userStore.logout()
 
-        // Redirect to login and prefill email/username
         this.$router.push({
           name: 'login',
           query: { prefill: this.email || this.username, justSignedUp: '1' }

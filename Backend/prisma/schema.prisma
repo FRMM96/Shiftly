@@ -26,6 +26,17 @@ enum ApplicationStatus {
   WITHDRAWN
 }
 
+model Company {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  inviteCode String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  users  User[]
+  shifts Shift[]
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -33,13 +44,20 @@ model User {
   passwordHash String
   role         Role     @default(EMPLOYEE)
 
-  // Relations
-  managedShifts Shift[]          @relation("ManagerShifts")
-  assignedShifts Shift[]         @relation("WorkerShifts")
-  applications  ShiftApplication[]
+  // ✅ Company ownership (multi-tenant)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  // Relations
+  managedShifts  Shift[]            @relation("ManagerShifts")
+  assignedShifts Shift[]            @relation("WorkerShifts")
+  applications   ShiftApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([role])
 }
 
 model Shift {
@@ -52,13 +70,17 @@ model Shift {
   pay       String?
   status    ShiftStatus @default(ACTIVE)
 
+  // ✅ Company scoping
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
   // Manager who created/published the shift
   managerId String
   manager   User @relation("ManagerShifts", fields: [managerId], references: [id])
 
   // Worker assigned to the shift (nullable when OPEN)
-  workerId  String?
-  worker    User? @relation("WorkerShifts", fields: [workerId], references: [id])
+  workerId String?
+  worker   User? @relation("WorkerShifts", fields: [workerId], references: [id])
 
   applications ShiftApplication[]
 
@@ -69,6 +91,7 @@ model Shift {
   @@index([status])
   @@index([managerId])
   @@index([workerId])
+  @@index([companyId])
 }
 
 model ShiftApplication {

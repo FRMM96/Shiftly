@@ -14,7 +14,7 @@ async function requireAuth(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET)
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, username: true, role: true }
+      select: { id: true, email: true, username: true, role: true, companyId: true }    
     })
 
     if (!user) return res.status(401).json({ message: 'Not authenticated' })
