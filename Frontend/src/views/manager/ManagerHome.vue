@@ -1,408 +1,622 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue' // Added computed
-import { isSameDay } from 'date-fns'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useShiftStore } from '../../stores/shiftStore' // <--- 1. Import Store
-// --- Imports ---
-import ManagerLayout from "../../components/manager/ManagerLayout.vue";
-import ShiftCalendar from "../../components/manager/ShiftCalendar.vue";
-import DayDetailModal from "../../components/manager/DayDetailModal.vue";
-import WorkingNowModal from "../../components/manager/WorkingNowModal.vue"; // Added modal
-import IssuesOpenModal from "../../components/manager/IssuesOpenModal.vue"; // Added Issues/Open modal
-import ShiftCard from "../../components/shared/ShiftCard.vue";
-import BaseButton from "../../components/shared/BaseButton.vue";
+import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
+import StatusBadge from '../../components/shared/StatusBadge.vue'
+import { useShiftStore } from '../../stores/shiftStore'
 
-const router = useRouter();
-const store = useShiftStore(); // <--- 2. Init Store
+const router = useRouter()
+const shiftStore = useShiftStore()
 
 onMounted(() => {
-    store.fetchManagerShifts()
+  shiftStore.fetchManagerShifts().catch(() => {})
 })
 
-// --- State ---
-const isModalOpen = ref(false);
-const isWorkingNowModalOpen = ref(false); // <--- State for Working Now modal
-const isIssuesOpenModalOpen = ref(false); // <--- State for Issues/Open modal
-const selectedDate = ref(null);
-const selectedDayShifts = ref([]);
+// --- Assign modal state ---
+const assigning = ref(false)
+const showAssignModal = ref(false)
+const assignSuccess = ref(false)
+const assignMessage = ref('')
 
-// --- Stats (Computed from Store) ---
-// Now these numbers will actually update when you add a shift!
-const activeShiftsNow = computed(() => {
-  const now = new Date();
-  
-  return store.shifts.filter(shift => {
-    // Only count active or assigned shifts
-    if (shift.status !== 'active') return false;
-    
-    // Safety check for date
-    if (!shift.date) return false;
-
-    let sTime = null;
-    let eTime = null;
-
-    if (shift.startTime && shift.endTime) {
-      sTime = shift.startTime;
-      eTime = shift.endTime;
-    } else if (shift.time) {
-      const parts = shift.time.split(' - ');
-      if (parts.length === 2) {
-        sTime = parts[0];
-        eTime = parts[1];
-      }
+const handleAssign = async (shift) => {
+  if (!confirm(`Assign an applicant to "${shift.position}"?`)) return
+  assigning.value = true
+  try {
+    const applicants = await shiftStore.fetchApplicants(shift.id)
+    if (applicants && applicants.length > 0) {
+      await shiftStore.assignApplicant(shift.id, applicants[0].id)
+      assignSuccess.value = true
+      assignMessage.value = `Applicant assigned to "${shift.position}" successfully!`
+    } else {
+      assignSuccess.value = false
+      assignMessage.value = 'No applicants found for this shift yet.'
     }
-
-    if (!sTime || !eTime) return false;
-
-    const startBaseStr = `${shift.date}T${sTime}:00`;
-    const endBaseStr = `${shift.date}T${eTime}:00`;
-    
-    const startDate = new Date(startBaseStr);
-    const endDate = new Date(endBaseStr);
-
-    // Handle overnight shifts
-    if (endDate < startDate) {
-      endDate.setDate(endDate.getDate() + 1);
-    }
-
-    // Now check if current time is within the shift block
-    return now >= startDate && now <= endDate;
-  });
-});
-
-const stats = computed(() => {
-  return {
-    workingNow: activeShiftsNow.value.length, // <--- Correctly compute working now
-    scheduledToday: store.shifts.filter((s) =>
-      isSameDay(new Date(s.date), new Date()),
-    ).length,
-    issuesAndOpen: store.shifts.filter(s => s.status === 'sick' || s.status === 'open').length,
-  };
-});
-
-// --- Actions ---
-const handleCreateShift = () => {
-  router.push("/manager/shift");
-};
-
-const resolveSickIssue = (shiftId) => {
-    // Look in the store, not local refs
-    const shift = store.shifts.find(s => s.id === shiftId)
-    if (shift) {
-        if (confirm(`Publish ${shift.role} shift to Shiftly Marketplace?`)) {
-            store.publishShift(shiftId)
-        }
-    }
-  
-};
-
-const handleDaySelect = (day) => {
-  selectedDate.value = day;
-  // Filter from STORE shifts
-  selectedDayShifts.value = store.shifts.filter((s) =>
-    isSameDay(new Date(s.date), day),
-  );
-  isModalOpen.value = true;
-};
-
-const handleAddShift = (newShiftData) => {
-  // 1. Get the date string from the currently selected date
-  // We need to format the Date object into 'YYYY-MM-DD' so the store and calendar recognize it
-  const dateObj = new Date(selectedDate.value);
-  const year = dateObj.getFullYear();
-  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-  const day = String(dateObj.getDate()).padStart(2, "0");
-  const formattedDate = `${year}-${month}-${day}`;
-
-  // 2. Add to store with the Date included
-  store.addShift({
-    ...newShiftData,
-    date: formattedDate, // <--- CRITICAL FIX: The calendar needs this!
-    pay: "150 kr/h",
-    status: "active", // <--- CRITICAL FIX: Added quotes around 'active'
-    image: "https://ui-avatars.com/api/?name=" + newShiftData.name,
-  });
-
-  // 3. Refresh the modal list immediately
-  handleDaySelect(selectedDate.value);
-};
-
-const handleDeleteShift = (id) => {
-  if (confirm("Are you sure you want to delete this shift?")) {
-    // You would need a delete action in your store, for now:
-    const index = store.shifts.findIndex((s) => s.id === id);
-    if (index !== -1) store.shifts.splice(index, 1);
-
-    handleDaySelect(selectedDate.value);
+  } catch (e) {
+    assignSuccess.value = false
+    assignMessage.value = e?.message || 'Failed to assign. Please try again.'
+  } finally {
+    assigning.value = false
+    showAssignModal.value = true
   }
-};
+}
 
-const handlePublishShift = (id) => {
-  resolveSickIssue(id);
-  handleDaySelect(selectedDate.value);
-};
-const handleUpdateShift = (updatedData) => {
-  store.updateShift(updatedData);
-  handleDaySelect(selectedDate.value); // Refresh Modal
-};
+// --- Data bound to store with fallback ---
+const currentUser = ref({
+  name: 'Alex Thompson',
+  role: 'REGIONAL ADMIN',
+  avatar: 'https://i.pravatar.cc/150?u=alex_thompson'
+})
+
+const stats = ref([
+  { id: 1, label: 'Total Active Staff', value: '1,248', badge: '+12%', badgeType: 'success', icon: 'people', iconColor: 'blue' },
+  { id: 2, label: 'Open Shifts', value: '18', badge: 'Urgent', badgeType: 'warning', icon: 'clipboard', iconColor: 'orange' },
+  { id: 3, label: 'New Applicants', value: '34', badge: 'New', badgeType: 'info', icon: 'user-search', iconColor: 'purple' },
+  { id: 4, label: 'Fill Rate', value: '94%', badge: '98.2%', badgeType: 'success', icon: 'lightning', iconColor: 'green' }
+])
+
+const shiftsNeedingStaff = computed(() => {
+  if (shiftStore.openShifts.length > 0) {
+    return shiftStore.openShifts.map(s => ({
+      id: s.id,
+      position: s.role || s.roleName,
+      subtitle: s.date,
+      location: s.business,
+      time: `${s.startTime || '?'} - ${s.endTime || '?'}`,
+      status: s.status,
+      statusClass: s.status.toLowerCase()
+    }))
+  }
+  return [
+    { id: 1, position: 'Lead Nurse (ICU)', subtitle: 'Night Shift', location: 'St. Mary\'s General', time: 'Tonight, 22:00', status: 'CRITICAL', statusClass: 'critical' },
+    { id: 2, position: 'Security Supervisor', subtitle: 'Event Coverage', location: 'Downtown Plaza', time: 'Tomorrow, 08:00', status: 'PENDING', statusClass: 'pending' },
+    { id: 3, position: 'Site Manager', subtitle: 'Project Alpha', location: 'Silicon Harbor', time: 'Aug 26, 09:00', status: 'OPEN', statusClass: 'open' }
+  ]
+})
+
+const newApplicants = ref([
+  { id: 1, name: 'Sarah Jenkins', role: 'Registered Nurse', exp: '5y Exp', avatar: 'https://i.pravatar.cc/150?u=sarah_j' },
+  { id: 2, name: 'Michael Chen', role: 'Security Expert', exp: '8y Exp', avatar: 'https://i.pravatar.cc/150?u=michael_c' },
+  { id: 3, name: 'Elena Rodriguez', role: 'Operations Lead', exp: '12y Exp', avatar: 'https://i.pravatar.cc/150?u=elena_r' },
+  { id: 4, name: 'David Park', role: 'Logistics Manager', exp: '4y Exp', avatar: 'https://i.pravatar.cc/150?u=david_p' }
+])
+
+const alerts = ref([
+  { id: 1, type: 'danger', icon: 'ambulance', title: 'Staff Absence', text: 'James Wilson (Site A) called out. Replacement needed within 2 hours.' },
+  { id: 2, type: 'warning', icon: 'clock', title: 'Compliance Warning', text: '14 staff certifications expiring in 30 days. Renewal required.' },
+  { id: 3, type: 'info', icon: 'megaphone', title: 'System Update', text: 'Mobile app version 4.2 scheduled for deployment tonight 00:00.' }
+])
+
+const activities = ref([
+  { id: 1, type: 'success', title: 'Shift Filled', text: 'Marcus Wright accepted ICU Morning Shift', time: '10 minutes ago' },
+  { id: 2, type: 'info', title: 'New Application', text: 'Elena Rodriguez applied for Ops Lead', time: '45 minutes ago' },
+  { id: 3, type: 'warning', title: 'Schedule Updated', text: 'Shift #1092 changed from 8hr to 12hr', time: '2 hours ago' }
+])
 </script>
 
 <template>
   <ManagerLayout>
-    <div class="content-wrapper">
-      <header class="header">
-        <h1>Dashboard</h1>
-        <button @click="handleCreateShift" class="btn-create">
-          + New Shift
-        </button>
-      </header>
-
-      <div class="stats-grid">
-        <div class="stat-card clickable-card" @click="isWorkingNowModalOpen = true">
-          <span class="stat-label">Working Now</span>
-          <span class="stat-number">{{ stats.workingNow }}</span>
-          <span class="stat-hint">Click to view details</span>
-        </div>
-        <div class="stat-card clickable-card" @click="handleDaySelect(new Date())">
-          <span class="stat-label">Scheduled Today</span>
-          <span class="stat-number">{{ stats.scheduledToday }}</span>
-          <span class="stat-hint">Click to view today's shifts</span>
-        </div>
-        <div class="stat-card alert-card clickable-card" @click="isIssuesOpenModalOpen = true">
-          <span class="stat-label">Issues / Open</span>
-          <span class="stat-number">{{ stats.issuesAndOpen }}</span>
-          <span class="stat-hint">Click to view and solve</span>
-        </div>
-      </div>
-
-
-
-      <section class="section-area">
-        <div class="section-header">
-          <h2 class="section-title">Overview</h2>
-          <div class="legend">
-            <span class="dot active"></span> Active
-            <span class="dot sick"></span> Sick
-            <span class="dot open"></span> Open
+        
+        <div class="page-title-row">
+          <div>
+            <h1>Executive Dashboard</h1>
+            <p>Real-time oversight for Western Region Operations</p>
+          </div>
+          <div class="title-actions">
+            <button class="btn btn-outline">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              Aug 24, 2024
+            </button>
+            <button class="btn btn-primary">
+              + Create Shift
+            </button>
           </div>
         </div>
 
+        <div class="stats-grid">
+          <div v-for="stat in stats" :key="stat.id" class="stat-card">
+            <div class="stat-header">
+              <div class="stat-icon-wrapper" :class="`bg-${stat.iconColor}`">
+                <svg v-if="stat.icon === 'people'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                <svg v-if="stat.icon === 'clipboard'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><line x1="12" y1="11" x2="12" y2="17"></line><line x1="12" y1="17" x2="12" y2="17"></line></svg>
+                <svg v-if="stat.icon === 'user-search'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <svg v-if="stat.icon === 'lightning'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              </div>
+              <StatusBadge :text="stat.badge" :type="`badge-${stat.badgeType}`" />
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">{{ stat.label }}</span>
+              <h3 class="stat-value">{{ stat.value }}</h3>
+            </div>
+          </div>
+        </div>
 
-        <ShiftCalendar :shifts="store.shifts" @selectDay="handleDaySelect" />
+        <div class="dashboard-grid">
+          
+          <div class="grid-left">
+            
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                  <h2>Shifts Needing Staff</h2>
+                </div>
+                <a href="#" class="view-all" @click.prevent="router.push('/manager/schedule')">View all</a>
+              </div>
 
-        <DayDetailModal
-          :isOpen="isModalOpen"
-          :date="selectedDate"
-          :shifts="selectedDayShifts"
-          @close="isModalOpen = false"
-          @addShift="handleAddShift"
-          @deleteShift="handleDeleteShift"
-          @updateShift="handleUpdateShift"
-          @publishShift="handlePublishShift"
-        />
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>POSITION</th>
+                    <th>LOCATION</th>
+                    <th>TIME</th>
+                    <th>STATUS</th>
+                    <th>ACTION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="shift in shiftsNeedingStaff" :key="shift.id">
+                    <td>
+                      <strong>{{ shift.position }}</strong>
+                      <span class="sub-text">{{ shift.subtitle }}</span>
+                    </td>
+                    <td>{{ shift.location }}</td>
+                    <td>{{ shift.time }}</td>
+                    <td>
+                      <StatusBadge :text="shift.status" :type="shift.statusClass" variant="pill" />
+                    </td>
+                    <td>
+                      <button class="btn btn-action" :disabled="assigning" @click="handleAssign(shift)">Assign</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-        <WorkingNowModal
-          :isOpen="isWorkingNowModalOpen"
-          :activeShifts="activeShiftsNow"
-          @close="isWorkingNowModalOpen = false"
-          @editShift="(shift) => router.push(`/manager/shift/${shift.id}`)"
-          @deleteShift="handleDeleteShift"
-        />
+            <div class="panel mt-4">
+              <div class="panel-header mb-3">
+            <div class="panel-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+              <h2>New Applicants</h2>
+            </div>
+            <button class="view-all" style="background:none;border:none;cursor:pointer;" @click="router.push('/manager/shift')">+ Create Shift</button>
+          </div>
 
-        <IssuesOpenModal
-          :isOpen="isIssuesOpenModalOpen"
-          :shifts="store.shifts"
-          :openShifts="store.openShifts"
-          @close="isIssuesOpenModalOpen = false"
-          @resolveSick="resolveSickIssue"
-          @deleteShift="handleDeleteShift"
-        />
-      </section>
-    </div>
+              <div class="applicants-grid">
+                <div v-for="app in newApplicants" :key="app.id" class="applicant-card">
+                  <img :src="app.avatar" :alt="app.name" class="app-avatar" />
+                  <div class="app-info">
+                    <strong>{{ app.name }}</strong>
+                    <span>{{ app.role }} • {{ app.exp }}</span>
+                  </div>
+                  <div class="app-actions">
+                    <button class="btn-icon btn-reject"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                    <button class="btn-icon btn-accept"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="grid-right">
+            
+            <div class="alerts-section">
+              <div class="panel-title mb-3">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <h2>Urgent Alerts</h2>
+              </div>
+              
+              <div class="alerts-list">
+                <div v-for="alert in alerts" :key="alert.id" class="alert-card" :class="`alert-${alert.type}`">
+                  <div class="alert-icon">
+                    <svg v-if="alert.icon === 'ambulance'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="2"></rect><circle cx="8" cy="18" r="2"></circle><circle cx="16" cy="18" r="2"></circle><line x1="12" y1="10" x2="12" y2="14"></line><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+                    <svg v-if="alert.icon === 'clock'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <svg v-if="alert.icon === 'megaphone'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                  </div>
+                  <div class="alert-content">
+                    <strong>{{ alert.title }}</strong>
+                    <p>{{ alert.text }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="activity-section mt-4">
+              <h2>Recent Activity</h2>
+              
+              <div class="timeline">
+                <div v-for="item in activities" :key="item.id" class="timeline-item">
+                  <div class="timeline-icon" :class="`bg-${item.type}`">
+                    <svg v-if="item.type === 'success'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <svg v-if="item.type === 'info'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    <svg v-if="item.type === 'warning'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                  </div>
+                  <div class="timeline-content">
+                    <strong>{{ item.title }}</strong>
+                    <p>{{ item.text }}</p>
+                    <span class="time">{{ item.time }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn btn-outline btn-block">Load More Activity</button>
+            </div>
+
+          </div>
+        </div>
+
   </ManagerLayout>
+
+  <!-- Assign Result Modal -->
+  <Teleport to="body">
+    <div v-if="showAssignModal" class="modal-overlay" @click.self="showAssignModal = false">
+      <div class="modal-box">
+        <div :class="assignSuccess ? 'modal-success' : 'modal-error'">
+          <div class="modal-icon" :class="assignSuccess ? 'success-icon' : 'error-icon'">
+            <svg v-if="assignSuccess" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          </div>
+          <h3>{{ assignSuccess ? 'Assigned!' : 'Notice' }}</h3>
+          <p>{{ assignMessage }}</p>
+        </div>
+        <button class="btn btn-primary modal-close-btn" @click="showAssignModal = false">Got it</button>
+      </div>
+    </div>
+  </Teleport>
+
 </template>
 
 <style scoped>
-/* 🟢 CLEANUP: Removed all sidebar/layout styles since ManagerLayout handles them */
 
-.content-wrapper {
-  padding: 2rem;
-  /* Add padding here for the main content */
-}
-
-.header {
+.page-title-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   margin-bottom: 2rem;
 }
 
-.btn-create {
-  background-color: #0f172a;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
+.page-title-row h1 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin: 0 0 0.25rem 0;
+  letter-spacing: -0.02em;
+}
+
+.page-title-row p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.title-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
 }
+
+.btn-primary { background-color: var(--primary); color: #FFFFFF; }
+.btn-primary:hover { background-color: var(--primary-hover); }
+
+.btn-outline { background-color: #FFFFFF; border-color: var(--border); color: var(--text-dark); }
+.btn-outline:hover { background-color: #F9FAFB; }
+
+.btn-block { width: 100%; justify-content: center; }
 
 /* --- Stats Grid --- */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 1.5rem;
-  margin-bottom: 2.5rem;
-}
-
-.stat-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.stat-label {
-  display: block;
-  color: #64748b;
-  font-size: 0.875rem;
-  margin-bottom: 0.5rem;
-}
-
-.stat-number {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.alert-card .stat-number {
-  color: #ef4444;
-}
-
-/* --- Issues Section --- */
-.text-danger {
-  color: #ef4444;
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.issues-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
   margin-bottom: 2rem;
 }
 
-/* --- Calendar Section --- */
-.section-header {
+.stat-card {
+  background-color: var(--bg-card);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.stat-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bg-blue { background-color: #EFF6FF; color: #2563EB; }
+.bg-orange { background-color: #FFF7ED; color: #EA580C; }
+.bg-purple { background-color: #F5F3FF; color: #7C3AED; }
+.bg-green { background-color: #DCFCE3; color: #16A34A; }
+
+.stat-icon-wrapper svg { stroke-width: 2.5px; }
+
+.stat-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+/* --- Dashboard Grid Layout --- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+.panel {
+  background-color: var(--bg-card);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  padding: 1.5rem;
+}
+
+.mt-4 { margin-top: 1.5rem; }
+.mb-3 { margin-bottom: 1.25rem; }
+
+.panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 }
 
-.section-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.legend {
-  display: flex;
-  gap: 15px;
-  font-size: 0.85rem;
-  color: #64748b;
-}
-
-.dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 5px;
-}
-
-.dot.active {
-  background: #10b981;
-}
-
-.dot.sick {
-  background: #ef4444;
-}
-
-.dot.open {
-  background: #f59e0b;
-}
-
-.badge-count {
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 20px;
-}
-
-.action-row {
+.panel-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.75rem;
+}
+
+.panel-title h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.view-all {
+  color: var(--primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.view-all:hover { text-decoration: underline; }
+
+/* --- Table --- */
+.data-table {
   width: 100%;
+  border-collapse: collapse;
 }
 
-.applicant-count {
+.data-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  color: #9CA3AF;
+  font-weight: 700;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.05em;
+}
+
+.data-table td {
+  padding: 1rem 0;
+  border-bottom: 1px solid #F3F4F6;
+  font-size: 0.9rem;
+  color: var(--text-dark);
+}
+
+.data-table tr:last-child td { border-bottom: none; padding-bottom: 0; }
+
+.data-table td strong { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+.sub-text { font-size: 0.8rem; color: var(--text-muted); }
+
+.btn-action {
+  background-color: #EFF6FF;
+  color: #2563EB;
+  border: none;
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
   font-size: 0.85rem;
-  color: #64748b;
-  margin-right: auto;
-  /* Pushes buttons to the right */
-  font-style: italic;
-}
-
-.marketplace-actions-container {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    width: 100%;
-}
-
-.shift-extra-details {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 10px 12px;
-    background: #f8fafc;
-    border-radius: 6px;
-    border: 1px solid #e2e8f0;
-}
-
-.detail-item {
-    font-size: 0.85rem;
-    color: #475569;
-}
-
-.detail-item strong {
-    color: #0f172a;
-    font-weight: 600;
-}
-
-.stat-card.clickable-card {
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+}
+.btn-action:hover { background-color: #DBEAFE; }
+
+/* --- Applicants Grid --- */
+.applicants-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.applicant-card {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  gap: 1rem;
+}
+
+.app-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.app-info { flex-grow: 1; }
+.app-info strong { display: block; font-size: 0.95rem; font-weight: 600; margin-bottom: 0.2rem;}
+.app-info span { font-size: 0.8rem; color: var(--text-muted); }
+
+.app-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.btn-reject { color: #9CA3AF; }
+.btn-reject:hover { background: #F3F4F6; color: #EF4444; }
+
+.btn-accept { background: var(--primary); border-color: var(--primary); color: white; }
+.btn-accept:hover { background: var(--primary-hover); }
+
+/* --- Alerts Section --- */
+.alerts-section h2, .activity-section h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 1.25rem 0;
+}
+
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.alert-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid;
+}
+
+.alert-danger { background-color: var(--red-bg); border-left-color: var(--red-border); color: var(--red-text); }
+.alert-warning { background-color: var(--orange-bg); border-left-color: var(--orange-border); color: var(--orange-text); }
+.alert-info { background-color: var(--blue-bg); border-left-color: var(--blue-border); color: var(--blue-text); }
+
+.alert-icon { margin-top: 2px; }
+
+.alert-content strong { display: block; font-size: 0.95rem; margin-bottom: 0.25rem; }
+.alert-content p { margin: 0; font-size: 0.85rem; line-height: 1.4; opacity: 0.9; }
+
+/* --- Activity Timeline --- */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
   position: relative;
 }
 
-.stat-card.clickable-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  border-color: #cbd5e1;
+/* Vertical Line */
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 15px;
+  width: 2px;
+  background-color: var(--border);
+  z-index: 1;
 }
 
-.stat-hint {
-  display: block;
-  font-size: 0.75rem;
-  color: #94a3b8;
-  margin-top: 4px;
+.timeline-item {
+  display: flex;
+  gap: 1rem;
+  position: relative;
+  z-index: 2;
 }
+
+.timeline-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-color: white; /* to cover the line */
+  border: 2px solid white;
+}
+
+.timeline-icon.bg-success { background-color: var(--green-bg); color: var(--green-border); }
+.timeline-icon.bg-info { background-color: var(--blue-bg); color: var(--blue-border); }
+.timeline-icon.bg-warning { background-color: var(--orange-bg); color: var(--orange-border); }
+
+.timeline-content { padding-top: 0.25rem; }
+.timeline-content strong { display: block; font-size: 0.95rem; margin-bottom: 0.2rem; }
+.timeline-content p { margin: 0 0 0.25rem 0; font-size: 0.85rem; color: var(--text-dark); }
+.timeline-content .time { font-size: 0.75rem; color: #9CA3AF; }
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 1200px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .applicants-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 900px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .page-title-row { flex-direction: column; align-items: flex-start; gap: 1rem; }
+}
+
+/* --- Modal --- */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.modal-box {
+  background: #fff; border-radius: 16px; padding: 2rem;
+  max-width: 380px; width: 90%; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.modal-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 1.25rem;
+}
+.success-icon { background: #DCFCE3; color: #16A34A; }
+.error-icon { background: #FEE2E2; color: #DC2626; }
+.modal-box h3 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.5rem; }
+.modal-box p { color: #6B7280; font-size: 0.95rem; margin: 0 0 1.5rem; }
+.modal-close-btn { width: 100%; }
 </style>

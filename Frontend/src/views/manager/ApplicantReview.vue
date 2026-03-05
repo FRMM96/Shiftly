@@ -1,354 +1,490 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
+import { useShiftStore } from '../../stores/shiftStore'
+
+const router = useRouter()
+const shiftStore = useShiftStore()
+
+// --- State ---
+const assigning = ref(false)
+const showModal = ref(false)
+const modalSuccess = ref(false)
+const modalMessage = ref('')
+
+onMounted(() => {
+  shiftStore.fetchManagerShifts().catch(() => {})
+})
+
+const currentUser = ref({
+  name: 'Alex Thompson',
+  role: 'REGIONAL ADMIN',
+  avatar: 'https://i.pravatar.cc/150?u=alex_thompson'
+})
+
+// Bind to store with fallback to mock data
+const shiftsRequiringAttention = computed(() => {
+  if (shiftStore.openShifts.length > 0) {
+    return shiftStore.openShifts.map((s, index) => ({
+      id: s.id,
+      title: `${s.role || s.roleName} - ${s.business}`,
+      location: s.business,
+      date: `${s.date}, ${s.startTime || '?'} - ${s.endTime || '?'}`,
+      urgency: index === 0 ? 'High Urgency' : null,
+      applicantCount: Array.isArray(s.applications) ? s.applications.length : 0,
+      iconColor: index % 2 === 0 ? 'blue' : 'green',
+      applicants: Array.isArray(s.applications) ? s.applications.map(app => ({
+        id: app.id,
+        name: app.userName || app.username || 'Applicant',
+        rating: app.rating || '4.5',
+        role: s.role || s.roleName,
+        time: app.appliedAt ? `Applied ${app.appliedAt}` : 'Applied recently',
+        avatar: app.avatar || `https://i.pravatar.cc/150?u=${app.id}`
+      })) : []
+    }))
+  }
+
+  // Fallback mock data
+  return [
+    {
+      id: 1,
+      title: 'Morning Shift - ICU Nursing',
+      location: 'Radix General Hospital',
+      date: 'Oct 24, 07:00 - 15:00',
+      urgency: 'High Urgency',
+      applicantCount: 5,
+      iconColor: 'blue',
+      applicants: [
+        { id: 101, name: 'Dr. Sarah Jenkins', rating: '4.9', role: 'RN Specialist', time: 'Applied 2h ago', avatar: 'https://i.pravatar.cc/150?u=sarah_j_doc' },
+        { id: 102, name: 'Emily Chen', rating: '4.7', role: 'General Nursing', time: 'Applied 5h ago', avatar: 'https://i.pravatar.cc/150?u=emily_chen' }
+      ]
+    },
+    {
+      id: 2,
+      title: 'Night Shift - Emergency Room',
+      location: 'City Clinic West',
+      date: 'Oct 25, 22:00 - 06:00',
+      urgency: null,
+      applicantCount: 3,
+      iconColor: 'green',
+      applicants: [
+        { id: 103, name: 'Marcus Thorne', rating: '5.0', role: 'ER Specialist', time: 'Applied yesterday', avatar: 'https://i.pravatar.cc/150?u=marcus_thorne' }
+      ]
+    }
+  ]
+})
+
+const handleApprove = async (shift, applicant) => {
+  if (!confirm(`Are you sure you want to approve ${applicant.name} for this shift?`)) return
+  assigning.value = true
+  try {
+    await shiftStore.assignApplicant(shift.id, applicant.id)
+    modalSuccess.value = true
+    modalMessage.value = `${applicant.name} has been approved and assigned!`
+  } catch (e) {
+    modalSuccess.value = false
+    modalMessage.value = e?.message || 'Failed to approve applicant. Please try again.'
+  } finally {
+    assigning.value = false
+    showModal.value = true
+  }
+}
+
+const closeModal = () => {
+  showModal.value = false
+}
+
+const handleViewProfile = (applicantId) => {
+  router.push(`/manager/applicants/${applicantId}`)
+}
+</script>
 
 <template>
   <ManagerLayout>
-    <div class="page-container">
-      <header class="page-header">
-        <div>
-          <h1 class="page-title">Applicant Review</h1>
-          <p class="page-subtitle">Select an open shift to review candidates (real accounts).</p>
+        
+        <div class="page-header">
+          <h1>Applicant Review</h1>
+          <p>Review and approve healthcare professionals for open shifts.</p>
         </div>
-        <div class="stats-pill">
-          <strong>{{ openShifts.length }}</strong> Shifts Open
-        </div>
-      </header>
 
-      <p v-if="error" class="error">{{ error }}</p>
-
-      <div class="review-grid">
-        <aside class="shifts-column">
-          <h3>Open Shifts</h3>
-          <div v-if="openShifts.length === 0" class="muted">No open shifts right now.</div>
-
-          <button
-            v-for="s in openShifts"
-            :key="s.id"
-            class="shift-btn"
-            :class="{ active: s.id === selectedShiftId }"
-            @click="selectShift(s.id)"
-          >
-            <div class="shift-title">{{ s.role }}</div>
-            <div class="shift-meta">{{ s.date }} • {{ s.startTime }} - {{ s.endTime }}</div>
+        <div class="tabs-container">
+          <button class="tab active">
+            Pending <span class="tab-badge">12</span>
           </button>
-        </aside>
+          <button class="tab">Reviewed</button>
+          <button class="tab">Shortlisted</button>
+        </div>
 
-        <section class="candidates-column">
-          <h3 v-if="selectedShift">Applicants for {{ selectedShift.role }}</h3>
+        <div class="attention-header">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0047FF" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          <h2>Shifts Requiring Attention</h2>
+        </div>
 
-          <div v-if="loadingApplicants">Loading applicants…</div>
-          <div v-else-if="!selectedShift" class="muted">Select a shift.</div>
-          <div v-else-if="applicants.length === 0" class="muted">No applicants yet.</div>
-
-          <div v-for="app in applicants" :key="app.id" class="candidate-card">
-            <div class="avatar">{{ (app.user.username || '?').charAt(0).toUpperCase() }}</div>
-            <div class="info">
-              <div class="name">{{ app.user.username }}</div>
-              <div class="meta">{{ app.user.email }} • {{ new Date(app.appliedAt).toLocaleString() }}</div>
-              <div class="meta">Status: {{ app.status }}</div>
+        <div class="shifts-list">
+          <div v-for="shift in shiftsRequiringAttention" :key="shift.id" class="shift-group-card">
+            
+            <div class="shift-header">
+              <div class="shift-header-left">
+                <div class="shift-icon" :class="`icon-${shift.iconColor}`">
+                  <svg v-if="shift.iconColor === 'blue'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                  <svg v-if="shift.iconColor === 'green'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><line x1="7.05" y1="7.05" x2="16.95" y2="16.95"></line><line x1="7.05" y1="16.95" x2="16.95" y2="7.05"></line></svg>
+                </div>
+                <div class="shift-info">
+                  <h3>{{ shift.title }}</h3>
+                  <p>{{ shift.location }} <span class="dot">•</span> {{ shift.date }}</p>
+                </div>
+              </div>
+              <div class="shift-header-right">
+                <span v-if="shift.urgency" class="urgency-badge">{{ shift.urgency }}</span>
+                <span class="applicant-count">{{ shift.applicantCount }} Applicants</span>
+              </div>
             </div>
-            <div class="actions">
-              <BaseButton variant="primary" @click="handleHire(app)" :disabled="app.status !== 'PENDING'">Hire</BaseButton>
+
+            <div class="applicants-list">
+              <div v-for="app in shift.applicants" :key="app.id" class="applicant-row">
+                
+                <div class="applicant-info">
+                  <img :src="app.avatar" :alt="app.name" class="applicant-avatar" />
+                  <div class="applicant-details">
+                    <h4>{{ app.name }}</h4>
+                    <div class="applicant-meta">
+                      <span class="rating">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                        {{ app.rating }}
+                      </span>
+                      <span class="dot">•</span>
+                      <span>{{ app.role }}</span>
+                      <span class="dot">•</span>
+                      <span>{{ app.time }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="applicant-actions">
+                  <button class="btn btn-outline" @click="handleViewProfile(app.id)">View Profile</button>
+                  <button class="btn btn-primary" :disabled="assigning" @click="handleApprove(shift, app)">{{ assigning ? 'Approving...' : 'Approve' }}</button>
+                </div>
+
+              </div>
             </div>
+
           </div>
-        </section>
+        </div>
+
+        <div class="load-more-container">
+          <button class="btn-load-more">Load More Shifts</button>
+        </div>
+
+  </ManagerLayout>
+
+  <!-- Approve Result Modal -->
+  <Teleport to="body">
+    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+      <div class="modal-box">
+        <div :class="modalSuccess ? 'modal-success' : 'modal-error'">
+          <div class="modal-icon" :class="modalSuccess ? 'success-icon' : 'error-icon'">
+            <svg v-if="modalSuccess" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          </div>
+          <h3>{{ modalSuccess ? 'Approved!' : 'Error' }}</h3>
+          <p>{{ modalMessage }}</p>
+        </div>
+        <button class="btn btn-primary modal-close-btn" @click="closeModal">Got it</button>
       </div>
     </div>
-  </ManagerLayout>
+  </Teleport>
 </template>
 
-<script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import BaseButton from '../../components/shared/BaseButton.vue'
-import ManagerLayout from '../../components/manager/ManagerLayout.vue'
-import { useShiftStore } from '../../stores/shiftStore'
-
-const store = useShiftStore()
-
-const openShifts = computed(() => store.shifts.filter(s => s.status === 'OPEN'))
-
-const selectedShiftId = ref(null)
-const applicants = ref([])
-const loadingApplicants = ref(false)
-const error = ref('')
-
-const selectedShift = computed(() => openShifts.value.find(s => s.id === selectedShiftId.value))
-
-async function loadOpenShifts() {
-  await store.fetchManagerShifts()
-  if (!selectedShiftId.value && openShifts.value.length > 0) selectedShiftId.value = openShifts.value[0].id
-}
-
-async function loadApplicants() {
-  if (!selectedShiftId.value) return
-  loadingApplicants.value = true
-  error.value = ''
-  try {
-    applicants.value = await store.fetchApplicants(selectedShiftId.value)
-  } catch (e) {
-    error.value = e.message || 'Failed to load applicants'
-  } finally {
-    loadingApplicants.value = false
-  }
-}
-
-function selectShift(id) {
-  selectedShiftId.value = id
-}
-
-async function handleHire(app) {
-  if (!selectedShift.value) return
-  if (confirm(`Hire ${app.user.username} for the ${selectedShift.value.role} shift?`)) {
-    try {
-      await store.assignApplicant(selectedShiftId.value, app.id)
-      await loadOpenShifts()
-      await loadApplicants()
-      alert('Success! The worker has been assigned.')
-    } catch (e) {
-      alert(e.message || 'Failed to assign')
-    }
-  }
-}
-
-onMounted(async () => {
-  await loadOpenShifts()
-  await loadApplicants()
-})
-
-watch(selectedShiftId, loadApplicants)
-</script>
-
 <style scoped>
-/* Layout Structure */
-.page-container {
-    padding: 2rem;
-    max-width: 1200px;
-    margin: 0 auto;
-    height: calc(100vh - 60px);
-    /* Fill screen minus header */
-    display: flex;
-    flex-direction: column;
+
+.page-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
 }
 
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
+.page-header p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0;
 }
 
-.page-title {
-    font-size: 1.8rem;
-    font-weight: 800;
-    margin: 0;
-    color: #0f172a;
+/* Tabs */
+.tabs-container {
+  display: flex;
+  gap: 2rem;
+  border-bottom: 1px solid var(--border);
+  margin-top: 2rem;
+  margin-bottom: 2.5rem;
 }
 
-.page-subtitle {
-    color: #64748b;
-    margin-top: 5px;
+.tab {
+  background: none;
+  border: none;
+  padding: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+  bottom: -1px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.stats-pill {
-    background: #fefce8;
-    color: #a16207;
-    padding: 8px 16px;
-    border-radius: 50px;
-    font-size: 0.9rem;
-    border: 1px solid #fde047;
+.tab:hover {
+  color: var(--text-dark);
 }
 
-/* Two-Column Grid */
-.review-grid {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    /* Fixed sidebar, fluid main */
-    gap: 2rem;
-    flex: 1;
-    overflow: hidden;
-    /* Prevents full page scroll */
+.tab.active {
+  color: var(--primary);
+  font-weight: 600;
+  border-bottom: 2px solid var(--primary);
 }
 
-/* Left Column: Shifts */
-.shifts-column {
-    border-right: 1px solid #e2e8f0;
-    padding-right: 1.5rem;
-    overflow-y: auto;
+.tab-badge {
+  background-color: var(--primary);
+  color: #FFFFFF;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
 }
 
-.column-title {
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #94a3b8;
-    margin-bottom: 1rem;
+/* Section Header */
+.attention-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
 }
 
-.shift-item {
-    background: white;
-    border: 1px solid #e2e8f0;
-    padding: 1rem;
-    border-radius: 8px;
-    margin-bottom: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
+.attention-header h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
 }
 
-.shift-item:hover {
-    border-color: #cbd5e1;
+/* --- Shift Group Cards --- */
+.shifts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
-.shift-item.selected {
-    border-color: #0f172a;
-    background-color: #f8fafc;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+.shift-group-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
 }
 
 .shift-header {
-    display: flex;
-    justify-content: space-between;
-    font-weight: 600;
-    margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #F8FAFC;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
 }
 
-.shift-role {
-    color: #0f172a;
+.shift-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
-.shift-date {
-    color: #64748b;
-    font-size: 0.9rem;
+.shift-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.shift-meta {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.8rem;
-    color: #64748b;
+.icon-blue { background-color: #EFF6FF; color: #2563EB; }
+.icon-green { background-color: #DCFCE3; color: #16A34A; }
+
+.shift-info h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+}
+
+.shift-info p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.dot { margin: 0 0.25rem; color: #9CA3AF; }
+
+.shift-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.urgency-badge {
+  background-color: var(--urgency-bg);
+  color: var(--urgency-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
 }
 
 .applicant-count {
-    color: #d97706;
-    font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-dark);
 }
 
-/* Right Column: Candidates */
-.candidates-column {
-    padding-left: 0.5rem;
-    overflow-y: auto;
+/* Applicants List */
+.applicants-list {
+  display: flex;
+  flex-direction: column;
 }
 
-.candidates-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #f1f5f9;
+.applicant-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
 }
 
-.candidates-header h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 400;
+.applicant-row:last-child {
+  border-bottom: none;
 }
 
-.time-badge {
-    background: #f1f5f9;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    font-weight: 600;
+.applicant-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
-.candidate-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+.applicant-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
-.candidate-card.clickable-card {
-    cursor: pointer;
+.applicant-details h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
 }
 
-.candidate-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    border-color: #cbd5e1;
-}
-
-.candidate-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.avatar-lg {
-    width: 56px;
-    height: 56px;
-    background: #0f172a;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-
-.candidate-name {
-    margin: 0 0 4px 0;
-    font-size: 1.1rem;
-}
-
-.trust-signals {
-    font-size: 0.9rem;
-    color: #64748b;
-    display: flex;
-    gap: 8px;
+.applicant-meta {
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
 .rating {
-    color: #0f172a;
-    font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-dark);
+  font-weight: 600;
 }
 
-.candidate-right {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    align-items: flex-end;
+.applicant-actions {
+  display: flex;
+  gap: 0.75rem;
 }
 
-.applied-time {
-    font-size: 0.8rem;
-    color: #94a3b8;
+.btn {
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.action-buttons {
-    display: flex;
-    gap: 8px;
+.btn-primary {
+  background-color: var(--primary);
+  color: #FFFFFF;
+  border: 1px solid var(--primary);
 }
 
-.empty-state {
-    text-align: center;
-    color: #94a3b8;
-    margin-top: 3rem;
-    font-style: italic;
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
-.error { color:#b00020; }
-.review-grid { display:grid; grid-template-columns: 280px 1fr; gap:16px; }
-.shift-btn { width:100%; text-align:left; padding:12px; border:1px solid #eee; border-radius:12px; background:#fff; margin-bottom:10px; }
-.shift-btn.active { outline: 2px solid #6b46c1; }
-.shift-title { font-weight:700; }
-.shift-meta, .muted { font-size: 13px; opacity:.8; }
-.candidate-card { display:flex; gap:12px; padding:12px; border:1px solid #eee; border-radius:12px; background:#fff; margin-bottom:10px; align-items:center; }
-.avatar { width:40px; height:40px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:#eef; font-weight:700; }
-.actions { margin-left:auto; }
+.btn-outline {
+  background-color: #FFFFFF;
+  border: 1px solid var(--border);
+  color: var(--text-dark);
+}
+
+.btn-outline:hover {
+  background-color: #F8FAFC;
+}
+
+/* Load More Button */
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 2.5rem;
+}
+
+.btn-load-more {
+  background-color: #FFFFFF;
+  border: 1px solid var(--border);
+  color: var(--text-dark);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.btn-load-more:hover {
+  background-color: #F8FAFC;
+}
+
+/* --- Responsive Adjustments --- */
+
+@media (max-width: 768px) {
+  .shift-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .shift-header-right { width: 100%; justify-content: space-between; }
+  
+  .applicant-row { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .applicant-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+}
+
+/* --- Modal --- */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.modal-box {
+  background: #fff; border-radius: 16px; padding: 2rem;
+  max-width: 380px; width: 90%; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.modal-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 1.25rem;
+}
+.success-icon { background: #DCFCE3; color: #16A34A; }
+.error-icon { background: #FEE2E2; color: #DC2626; }
+.modal-box h3 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.5rem; }
+.modal-box p { color: #6B7280; font-size: 0.95rem; margin: 0 0 1.5rem; }
+.modal-close-btn { width: 100%; }
 </style>
