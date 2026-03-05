@@ -3,9 +3,11 @@ import { ref, computed } from 'vue'
 import { apiFetch, setToken } from '../lib/api'
 
 export const useUserStore = defineStore('user', () => {
+
   // Session state
   const token = ref(typeof window !== 'undefined' ? localStorage.getItem('shiftly_token') : null)
   const user = ref(null)
+
 
   const isLoggedIn = computed(() => !!token.value && !!user.value)
   const isBoss = computed(() => user.value?.role === 'BOSS')
