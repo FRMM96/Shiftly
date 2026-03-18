@@ -12,6 +12,7 @@ export const useUserStore = defineStore('user', () => {
   const isLoggedIn = computed(() => !!token.value && !!user.value)
   const isBoss = computed(() => user.value?.role === 'BOSS')
   const isEmployee = computed(() => user.value?.role === 'EMPLOYEE')
+  const currentInviteCode = computed(() => user.value?.company?.inviteCode || '')
 
   async function register({ email, username, password, role, inviteCode, companyName }) {
   const res = await apiFetch('/api/auth/register', {
@@ -88,6 +89,7 @@ export const useUserStore = defineStore('user', () => {
     isLoggedIn,
     isBoss,
     isEmployee,
+    currentInviteCode,
     register,
     login,
     fetchMe,

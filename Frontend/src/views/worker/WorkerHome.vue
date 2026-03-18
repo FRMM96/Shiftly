@@ -1,419 +1,206 @@
 <script setup>
 import { computed, onMounted } from 'vue'
-import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
-import StatusBadge from '../../components/shared/StatusBadge.vue'
-import WorkerShiftCard from '../../components/shared/WorkerShiftCard.vue'
 import { useRouter } from 'vue-router'
-import { useShiftStore } from '../../stores/shiftStore'
+import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
 import { useScheduleStore } from '../../stores/scheduleStore'
+import { useShiftStore } from '../../stores/shiftStore'
 import { useUserStore } from '../../stores/userStore'
+import { useNotificationStore } from '../../stores/notificationStore'
 
+const notificationStore = useNotificationStore()
 const router = useRouter()
-const shiftStore = useShiftStore()
 const scheduleStore = useScheduleStore()
+const shiftStore = useShiftStore()
 const userStore = useUserStore()
 
-onMounted(() => {
-  scheduleStore.fetchMySchedule().catch(() => {})
+onMounted(async () => {
+  await Promise.allSettled([
+    scheduleStore.fetchMySchedule(),
+    shiftStore.fetchMyApplications(),
+    notificationStore.fetchMyNotifications()
+  ])
 })
 
-// --- Mock Data (Matches the Image Exactly) ---
-// Swapped to computed properties pointing to your stores with fallbacks
-const user = computed(() => ({
-  name: userStore.user?.username || 'Alex',
-  scheduledShiftsCount: scheduleStore.mySchedule.length || 4
-}))
-
-const stats = ref({
-  hours: '124.5h',
-  earnings: '$2,480.00',
-  rating: '4.9'
-})
+const user = computed(() => userStore.user || {})
 
 const upcomingShifts = computed(() => {
-  if (scheduleStore.mySchedule.length > 0) {
-    return scheduleStore.mySchedule.map(s => {
-      const d = new Date(s.date)
-      return {
-        id: s.id,
-        month: d.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
-        day: String(d.getDate()).padStart(2, '0'),
-        title: s.role || s.roleName,
-        time: s.time || 'TBD',
-        location: s.business || 'Location TBD',
-        pay: s.pay || 'TBD',
-        status: s.status.toUpperCase() || 'CONFIRMED'
-      }
-    })
-  }
-  return [
-    { id: 1, month: 'OCT', day: '24', title: 'Supervisor - Event Logistics', time: '08:00 AM - 04:00 PM', location: 'North Stadium', pay: '$25.50/hr', status: 'CONFIRMED' },
-    { id: 2, month: 'OCT', day: '26', title: 'General Labor - Warehouse', time: '10:00 PM - 06:00 AM', location: 'East Distribution Hub', pay: '$19.00/hr', status: 'CONFIRMED' },
-    { id: 3, month: 'OCT', day: '28', title: 'Inventory Counter', time: '09:00 AM - 01:00 PM', location: 'Tech Solutions Plaza', pay: '$22.00/hr', status: 'TENTATIVE' }
-  ]
+  return scheduleStore.mySchedule.slice(0, 5)
 })
 
-const pendingApplications = computed(() => {
-  if (shiftStore.myApplications.length > 0) {
-    return shiftStore.myApplications.map(app => ({
-      id: app.id,
-      title: app.role || app.roleName,
-      company: app.business,
-      status: 'UNDER REVIEW',
-      statusType: 'info',
-      appliedDays: 1,
-      pay: app.pay || 'TBD',
-      actionText: 'View Details',
-      actionType: 'outline'
-    }))
-  }
-  return [
-    { id: 1, title: 'Senior Event Lead', company: 'City Festival Operations', status: 'UNDER REVIEW', statusType: 'info', appliedDays: 2, pay: '$32.00/hr', actionText: 'View Details', actionType: 'outline' },
-    { id: 2, title: 'Logistics Coordinator', company: 'Global Expo 2024', status: 'INTERVIEW INVITED', statusType: 'warning', appliedDays: 5, pay: '$28.00/hr', actionText: 'Action Needed', actionType: 'solid' }
-  ]
-})
+const nextShift = computed(() => upcomingShifts.value[0] || null)
+
+const applicationItems = computed(() => shiftStore.applications.slice(0, 5))
+const latestNotification = computed(() => notificationStore.notifications[0] || null)
+
 </script>
 
 <template>
   <WorkerLayout>
-        <div class="welcome-section">
-          <h1>Welcome back, {{ user.name }}</h1>
-          <p>You have {{ user.scheduledShiftsCount }} shifts scheduled for this week.</p>
+    <div class="page">
+      <div class="welcome-section">
+        <h1>Welcome back, {{ user.username || 'Worker' }}</h1>
+        <p>You have {{ upcomingShifts.length }} scheduled shifts.</p>
+      </div>
+
+      <div
+        v-if="latestNotification && !latestNotification.isRead"
+        class="notif-banner"
+      >
+        <strong>{{ latestNotification.title }}</strong>
+        <p>{{ latestNotification.message }}</p>
+      </div>
+
+      <div v-if="nextShift" class="next-shift-card">
+        <div>
+          <div class="small-label">NEXT SHIFT</div>
+          <h3>{{ nextShift.role }}</h3>
+          <p>{{ nextShift.date }} • {{ nextShift.time }}</p>
+          <p>{{ nextShift.business }}</p>
         </div>
+        <button class="btn btn-secondary" @click="router.push('/worker/calendar')">View Calendar</button>
+      </div>
 
-        <div class="next-shift-card">
-          <div class="next-shift-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      <div class="dashboard-grid">
+        <section class="card">
+          <div class="section-header">
+            <h2>Upcoming Shifts</h2>
+            <router-link to="/worker/calendar">View Calendar</router-link>
           </div>
-          <div class="next-shift-info">
-            <span class="alert-label">NEXT SHIFT STARTS SOON</span>
-            <h3>Morning Floor Shift at City Center</h3>
-            <p>Starts in 28 minutes. Remember to clock in via the app.</p>
-          </div>
-          <div class="next-shift-actions">
-            <button class="btn btn-primary">Clock In</button>
-            <button class="btn btn-secondary">View Map</button>
-          </div>
-        </div>
 
-        <div class="stats-row">
-          <div class="stat-card">
-            <span class="stat-label">TOTAL HOURS (MTD)</span>
-            <span class="stat-value">{{ stats.hours }}</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">ESTIMATED EARNINGS</span>
-            <span class="stat-value">{{ stats.earnings }}</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">RATING</span>
-            <span class="stat-value">{{ stats.rating }} <span class="star">★</span></span>
-          </div>
-        </div>
+          <div v-if="scheduleStore.loading">Loading shifts…</div>
+          <div v-else-if="scheduleStore.error">{{ scheduleStore.error }}</div>
+          <div v-else-if="upcomingShifts.length === 0">No shifts assigned yet.</div>
 
-        <div class="dashboard-grid">
-          
-          <section class="shifts-section">
-            <div class="section-header">
-              <h2>Upcoming Shifts (7 Days)</h2>
-              <router-link to="/worker/calendar" class="link">View Calendar</router-link>
-            </div>
-            
-            <div class="shifts-list">
-              <WorkerShiftCard v-for="shift in upcomingShifts" :key="shift.id" :shift="shift" />
-            </div>
-          </section>
-
-          <section class="applications-section">
-            <div class="section-header">
-              <h2>Pending Applications</h2>
-            </div>
-            
-            <div class="applications-list">
-              <div v-for="app in pendingApplications" :key="app.id" class="app-card">
-                <h4>{{ app.title }}</h4>
-                <p class="company">{{ app.company }}</p>
-                <div class="app-meta">
-                  <div class="meta-left">
-                    <StatusBadge :text="app.status" :type="app.statusType" />
-                  </div>
-                  <span class="applied-time">Applied {{ app.appliedDays }} days ago</span>
-                </div>
-                <div class="app-footer">
-                  <span class="pay-rate">{{ app.pay }}</span>
-                  <button class="btn btn-sm" :class="app.actionType === 'solid' ? 'btn-primary' : 'btn-outline'">
-                    {{ app.actionText }}
-                  </button>
-                </div>
+          <div v-else class="list">
+            <div v-for="shift in upcomingShifts" :key="shift.id" class="list-item">
+              <div>
+                <strong>{{ shift.role }}</strong>
+                <div>{{ shift.date }} • {{ shift.time }}</div>
+                <div>{{ shift.business }}</div>
               </div>
-
-              <button class="btn btn-outline btn-block browse-btn" @click="router.push('/worker/marketplace')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                Browse More Jobs
-              </button>
             </div>
-          </section>
+          </div>
+        </section>
 
-        </div>
+        <section class="card">
+          <div class="section-header">
+            <h2>My Applications</h2>
+            <router-link to="/worker/applications">View All</router-link>
+          </div>
+
+          <div v-if="applicationItems.length === 0">No applications yet.</div>
+
+          <div v-else class="list">
+            <div v-for="app in applicationItems" :key="app.id" class="list-item">
+              <div>
+                <strong>{{ app.shift?.roleName || app.shift?.role || 'Shift' }}</strong>
+                <div>{{ app.shift?.business }}</div>
+                <div>Status: {{ app.status }}</div>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary full" @click="router.push('/worker/marketplace')">
+            Browse open shifts
+          </button>
+        </section>
+      </div>
+    </div>
   </WorkerLayout>
 </template>
 
 <style scoped>
+.page { display: flex; flex-direction: column; gap: 1.5rem; }
+.welcome-section h1 { margin: 0 0 0.25rem; font-size: 2rem; font-weight: 800; }
+.welcome-section p { margin: 0; color: #64748b; }
 
-.welcome-section {
-  margin-bottom: 2rem;
+.next-shift-card, .card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.25rem;
 }
 
-.welcome-section h1 {
-  font-size: 2.25rem;
-  font-weight: 800;
-  margin: 0 0 0.25rem 0;
-  color: var(--text-main);
-}
-
-.welcome-section p {
-  color: var(--text-muted);
-  font-size: 1.05rem;
-  margin: 0;
-}
-
-/* --- Next Shift Alert Card --- */
 .next-shift-card {
-  background-color: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 1.5rem;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+  gap: 1rem;
 }
 
-.next-shift-icon {
-  background-color: #fef3c7;
-  color: #d97706;
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.next-shift-info {
-  flex-grow: 1;
-}
-
-.alert-label {
+.small-label {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #d97706;
-  letter-spacing: 0.05em;
-  display: block;
+  color: #2563eb;
   margin-bottom: 0.35rem;
 }
 
-.next-shift-info h3 {
-  font-size: 1.15rem;
-  font-weight: 700;
-  margin: 0 0 0.35rem 0;
-}
-
-.next-shift-info p {
-  font-size: 0.95rem;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-.next-shift-actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-/* --- Buttons --- */
-.btn {
-  padding: 0.75rem 1.25rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.btn-sm {
-  padding: 0.5rem 1rem;
-  font-size: 0.85rem;
-}
-
-.btn-block {
-  width: 100%;
-}
-
-.btn-primary {
-  background-color: var(--primary);
-  color: white;
-}
-.btn-primary:hover { background-color: var(--primary-hover); }
-
-.btn-secondary {
-  background-color: #f1f5f9;
-  color: var(--text-main);
-  border-color: #e2e8f0;
-}
-.btn-secondary:hover { background-color: #e2e8f0; }
-
-.btn-outline {
-  background-color: transparent;
-  border-color: var(--primary);
-  color: var(--primary);
-}
-.btn-outline:hover { background-color: #eff6ff; }
-
-/* --- Stats Row --- */
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
-  margin-bottom: 3rem;
-}
-
-.stat-card {
-  background-color: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-}
-
-.stat-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-muted);
-}
-
-.stat-value {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.star {
-  color: #fbbf24;
-  font-size: 1.25rem;
-}
-
-/* --- Dashboard Grid (Lists) --- */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr 340px; /* Left takes remaining space, right is fixed */
-  gap: 2.5rem;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1.25rem;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .section-header h2 {
-  font-size: 1.25rem;
-  font-weight: 700;
   margin: 0;
+  font-size: 1.25rem;
 }
 
-.link {
-  color: var(--primary);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-/* --- Upcoming Shifts List --- */
-.shifts-list {
+.list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
-/* --- Applications List --- */
-.applications-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.app-card {
-  background-color: var(--card-bg);
-  border: 1px solid var(--border);
+.list-item {
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  padding: 1rem;
 }
 
-.app-card h4 {
-  margin: 0 0 0.25rem 0;
-  font-size: 1.05rem;
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
   font-weight: 700;
+  cursor: pointer;
 }
 
-.company {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin: 0 0 1rem 0;
+.btn-primary {
+  background: #0f172a;
+  color: #fff;
 }
 
-.app-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  gap: 1rem;
+.btn-secondary {
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
-.applied-time {
-  font-size: 0.8rem;
-  color: #94a3b8;
-  white-space: nowrap;
+.full {
+  width: 100%;
+  margin-top: 1rem;
 }
 
-.app-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px solid var(--border);
-  padding-top: 1rem;
-}
-
-.browse-btn {
-  margin-top: 0.5rem;
-  color: var(--text-muted);
-  border-style: dashed;
-  border-color: #cbd5e1;
-}
-.browse-btn:hover {
-  background-color: #f8fafc;
-  color: var(--text-main);
-}
-
-
-
-/* Responsive adjustments */
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
   .dashboard-grid { grid-template-columns: 1fr; }
-  .stats-row { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .next-shift-card { flex-direction: column; align-items: flex-start; }
+}
+
+.notif-banner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  border-radius: 12px;
+  padding: 1rem;
+}
+.notif-banner p {
+  margin: 0.35rem 0 0;
 }
 </style>

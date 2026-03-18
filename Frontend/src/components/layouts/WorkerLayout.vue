@@ -1,6 +1,14 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useUserStore } from '../../stores/userStore'
+import { useNotificationStore } from '../../stores/notificationStore'
+
+const notificationStore = useNotificationStore()
+const open = ref(false)
+
+onMounted(() => {
+  notificationStore.fetchMyNotifications().catch(() => {})
+})
 
 const userStore = useUserStore()
 

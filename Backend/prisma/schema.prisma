@@ -13,8 +13,8 @@ enum Role {
 }
 
 enum ShiftStatus {
-  ACTIVE   // assigned + scheduled
-  OPEN     // published to marketplace
+  ACTIVE
+  OPEN
   CANCELED
   COMPLETED
 }
@@ -24,6 +24,11 @@ enum ApplicationStatus {
   ACCEPTED
   REJECTED
   WITHDRAWN
+}
+
+enum ShiftVisibility {
+  COMPANY
+  GLOBAL
 }
 
 model Company {
@@ -44,14 +49,13 @@ model User {
   passwordHash String
   role         Role     @default(EMPLOYEE)
 
-  // ✅ Company ownership (multi-tenant)
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
-  // Relations
   managedShifts  Shift[]            @relation("ManagerShifts")
   assignedShifts Shift[]            @relation("WorkerShifts")
   applications   ShiftApplication[]
+  notifications Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -61,24 +65,24 @@ model User {
 }
 
 model Shift {
-  id        String      @id @default(cuid())
-  business  String
-  roleName  String
-  date      DateTime
-  startTime String
-  endTime   String
-  pay       String?
-  status    ShiftStatus @default(ACTIVE)
+  id         String          @id @default(cuid())
+  business   String
+  location   String?
+  notes      String?
+  roleName   String
+  date       DateTime
+  startTime  String
+  endTime    String
+  pay        String?
+  status     ShiftStatus     @default(ACTIVE)
+  visibility ShiftVisibility @default(COMPANY)
 
-  // ✅ Company scoping
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
-  // Manager who created/published the shift
   managerId String
   manager   User @relation("ManagerShifts", fields: [managerId], references: [id])
 
-  // Worker assigned to the shift (nullable when OPEN)
   workerId String?
   worker   User? @relation("WorkerShifts", fields: [workerId], references: [id])
 
@@ -92,6 +96,7 @@ model Shift {
   @@index([managerId])
   @@index([workerId])
   @@index([companyId])
+  @@index([visibility])
 }
 
 model ShiftApplication {
@@ -104,6 +109,25 @@ model ShiftApplication {
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([shiftId, userId]) // prevent duplicate applications
+  @@unique([shiftId, userId])
   @@index([status])
+}
+
+enum NotificationType {
+  GLOBAL_SHIFT_POSTED
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
 }
