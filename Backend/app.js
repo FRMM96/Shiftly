@@ -6,6 +6,7 @@ const authRoutes = require("./src/routes/auth.routes");
 const usersRoutes = require("./src/routes/users.routes");
 const shiftsRoutes = require("./src/routes/shifts.routes");
 const marketplaceRoutes = require("./src/routes/marketplace.routes");
+const notificationsRoutes = require("./src/routes/notifications.routes");
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/shifts", shiftsRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Helpful: basic 404
 app.use((req, res) => res.status(404).json({ message: "Not found" }));

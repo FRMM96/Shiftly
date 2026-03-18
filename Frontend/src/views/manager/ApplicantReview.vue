@@ -1,199 +1,75 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
 import { useShiftStore } from '../../stores/shiftStore'
 
-const router = useRouter()
 const shiftStore = useShiftStore()
+const loading = ref(false)
+const error = ref('')
+const rows = ref([])
 
-// --- State ---
-const assigning = ref(false)
-const showModal = ref(false)
-const modalSuccess = ref(false)
-const modalMessage = ref('')
-
-onMounted(() => {
-  shiftStore.fetchManagerShifts().catch(() => {})
-})
-
-const currentUser = ref({
-  name: 'Alex Thompson',
-  role: 'REGIONAL ADMIN',
-  avatar: 'https://i.pravatar.cc/150?u=alex_thompson'
-})
-
-// Bind to store with fallback to mock data
-const shiftsRequiringAttention = computed(() => {
-  if (shiftStore.openShifts.length > 0) {
-    return shiftStore.openShifts.map((s, index) => ({
-      id: s.id,
-      title: `${s.role || s.roleName} - ${s.business}`,
-      location: s.business,
-      date: `${s.date}, ${s.startTime || '?'} - ${s.endTime || '?'}`,
-      urgency: index === 0 ? 'High Urgency' : null,
-      applicantCount: Array.isArray(s.applications) ? s.applications.length : 0,
-      iconColor: index % 2 === 0 ? 'blue' : 'green',
-      applicants: Array.isArray(s.applications) ? s.applications.map(app => ({
-        id: app.id,
-        name: app.userName || app.username || 'Applicant',
-        rating: app.rating || '4.5',
-        role: s.role || s.roleName,
-        time: app.appliedAt ? `Applied ${app.appliedAt}` : 'Applied recently',
-        avatar: app.avatar || `https://i.pravatar.cc/150?u=${app.id}`
-      })) : []
-    }))
-  }
-
-  // Fallback mock data
-  return [
-    {
-      id: 1,
-      title: 'Morning Shift - ICU Nursing',
-      location: 'Radix General Hospital',
-      date: 'Oct 24, 07:00 - 15:00',
-      urgency: 'High Urgency',
-      applicantCount: 5,
-      iconColor: 'blue',
-      applicants: [
-        { id: 101, name: 'Dr. Sarah Jenkins', rating: '4.9', role: 'RN Specialist', time: 'Applied 2h ago', avatar: 'https://i.pravatar.cc/150?u=sarah_j_doc' },
-        { id: 102, name: 'Emily Chen', rating: '4.7', role: 'General Nursing', time: 'Applied 5h ago', avatar: 'https://i.pravatar.cc/150?u=emily_chen' }
-      ]
-    },
-    {
-      id: 2,
-      title: 'Night Shift - Emergency Room',
-      location: 'City Clinic West',
-      date: 'Oct 25, 22:00 - 06:00',
-      urgency: null,
-      applicantCount: 3,
-      iconColor: 'green',
-      applicants: [
-        { id: 103, name: 'Marcus Thorne', rating: '5.0', role: 'ER Specialist', time: 'Applied yesterday', avatar: 'https://i.pravatar.cc/150?u=marcus_thorne' }
-      ]
-    }
-  ]
-})
-
-const handleApprove = async (shift, applicant) => {
-  if (!confirm(`Are you sure you want to approve ${applicant.name} for this shift?`)) return
-  assigning.value = true
+async function load() {
+  loading.value = true
+  error.value = ''
   try {
-    await shiftStore.assignApplicant(shift.id, applicant.id)
-    modalSuccess.value = true
-    modalMessage.value = `${applicant.name} has been approved and assigned!`
+    await shiftStore.fetchManagerShifts()
+    const open = shiftStore.openShifts || []
+
+    const all = []
+    for (const shift of open) {
+      const applicants = await shiftStore.fetchApplicants(shift.id).catch(() => [])
+      all.push({
+        shift,
+        applicants
+      })
+    }
+    rows.value = all
   } catch (e) {
-    modalSuccess.value = false
-    modalMessage.value = e?.message || 'Failed to approve applicant. Please try again.'
+    error.value = e.message || 'Failed to load applicants'
   } finally {
-    assigning.value = false
-    showModal.value = true
+    loading.value = false
   }
 }
 
-const closeModal = () => {
-  showModal.value = false
+async function assign(shiftId, applicationId) {
+  try {
+    await shiftStore.assignApplicant(shiftId, applicationId)
+    await load()
+    alert('Applicant assigned')
+  } catch (e) {
+    alert(e.message || 'Failed to assign applicant')
+  }
 }
 
-const handleViewProfile = (applicantId) => {
-  router.push(`/manager/applicants/${applicantId}`)
-}
+onMounted(load)
 </script>
 
 <template>
   <ManagerLayout>
-        
-        <div class="page-header">
-          <h1>Applicant Review</h1>
-          <p>Review and approve healthcare professionals for open shifts.</p>
-        </div>
+    <h1>Applicant Review</h1>
 
-        <div class="tabs-container">
-          <button class="tab active">
-            Pending <span class="tab-badge">12</span>
-          </button>
-          <button class="tab">Reviewed</button>
-          <button class="tab">Shortlisted</button>
-        </div>
+    <div v-if="loading">Loading…</div>
+    <div v-else-if="error">{{ error }}</div>
+    <div v-else-if="rows.length === 0">No open shifts with applicants in this company.</div>
 
-        <div class="attention-header">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0047FF" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-          <h2>Shifts Requiring Attention</h2>
-        </div>
+    <div v-else>
+      <div v-for="row in rows" :key="row.shift.id" class="card">
+        <h3>{{ row.shift.roleName || row.shift.role }} — {{ row.shift.business }}</h3>
+        <p>{{ row.shift.date }} • {{ row.shift.startTime }} - {{ row.shift.endTime }}</p>
 
-        <div class="shifts-list">
-          <div v-for="shift in shiftsRequiringAttention" :key="shift.id" class="shift-group-card">
-            
-            <div class="shift-header">
-              <div class="shift-header-left">
-                <div class="shift-icon" :class="`icon-${shift.iconColor}`">
-                  <svg v-if="shift.iconColor === 'blue'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                  <svg v-if="shift.iconColor === 'green'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><line x1="7.05" y1="7.05" x2="16.95" y2="16.95"></line><line x1="7.05" y1="16.95" x2="16.95" y2="7.05"></line></svg>
-                </div>
-                <div class="shift-info">
-                  <h3>{{ shift.title }}</h3>
-                  <p>{{ shift.location }} <span class="dot">•</span> {{ shift.date }}</p>
-                </div>
-              </div>
-              <div class="shift-header-right">
-                <span v-if="shift.urgency" class="urgency-badge">{{ shift.urgency }}</span>
-                <span class="applicant-count">{{ shift.applicantCount }} Applicants</span>
-              </div>
-            </div>
+        <div v-if="row.applicants.length === 0">No applicants yet.</div>
 
-            <div class="applicants-list">
-              <div v-for="app in shift.applicants" :key="app.id" class="applicant-row">
-                
-                <div class="applicant-info">
-                  <img :src="app.avatar" :alt="app.name" class="applicant-avatar" />
-                  <div class="applicant-details">
-                    <h4>{{ app.name }}</h4>
-                    <div class="applicant-meta">
-                      <span class="rating">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                        {{ app.rating }}
-                      </span>
-                      <span class="dot">•</span>
-                      <span>{{ app.role }}</span>
-                      <span class="dot">•</span>
-                      <span>{{ app.time }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="applicant-actions">
-                  <button class="btn btn-outline" @click="handleViewProfile(app.id)">View Profile</button>
-                  <button class="btn btn-primary" :disabled="assigning" @click="handleApprove(shift, app)">{{ assigning ? 'Approving...' : 'Approve' }}</button>
-                </div>
-
-              </div>
-            </div>
-
+        <div v-else v-for="app in row.applicants" :key="app.id" class="app-row">
+          <div>
+            <strong>{{ app.user?.username }}</strong>
+            <div>{{ app.user?.email }}</div>
+            <div>Status: {{ app.status }}</div>
           </div>
+          <button @click="assign(row.shift.id, app.id)">Assign</button>
         </div>
-
-        <div class="load-more-container">
-          <button class="btn-load-more">Load More Shifts</button>
-        </div>
-
-  </ManagerLayout>
-
-  <!-- Approve Result Modal -->
-  <Teleport to="body">
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-box">
-        <div :class="modalSuccess ? 'modal-success' : 'modal-error'">
-          <div class="modal-icon" :class="modalSuccess ? 'success-icon' : 'error-icon'">
-            <svg v-if="modalSuccess" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-          </div>
-          <h3>{{ modalSuccess ? 'Approved!' : 'Error' }}</h3>
-          <p>{{ modalMessage }}</p>
-        </div>
-        <button class="btn btn-primary modal-close-btn" @click="closeModal">Got it</button>
       </div>
     </div>
-  </Teleport>
+  </ManagerLayout>
 </template>
 
 <style scoped>

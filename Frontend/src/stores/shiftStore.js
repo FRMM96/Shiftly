@@ -1,63 +1,74 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiFetch } from '../lib/api'
-import { useUserStore } from './userStore'
+
+function normalizeShift(s) {
+  return {
+    ...s,
+    date: new Date(s.date).toISOString().slice(0, 10),
+    role: s.roleName,
+    time: s.startTime && s.endTime ? `${s.startTime} - ${s.endTime}` : undefined,
+    location: s.location || '',
+    notes: s.notes || '',
+    visibility: s.visibility || 'COMPANY'
+  }
+}
 
 export const useShiftStore = defineStore('shifts', () => {
   const shifts = ref([])
+  const marketplaceShifts = ref([])
+  const applications = ref([])
 
   const openShifts = computed(() => shifts.value.filter(s => s.status === 'OPEN'))
 
-  const getShiftById = (id) => shifts.value.find(s => s.id == id)
+  const getShiftById = (id) =>
+    shifts.value.find(s => s.id == id) ||
+    marketplaceShifts.value.find(s => s.id == id)
 
-  // Shifts the current user applied to (from open shift list payload)
-  const myApplications = computed(() => {
-    const userStore = useUserStore()
-    if (!userStore.user) return []
-
-    return shifts.value.filter(shift => Array.isArray(shift.applications) && shift.applications.length > 0)
-  })
-
-  // --- Manager actions ---
   async function fetchManagerShifts(params = {}) {
     const q = new URLSearchParams(params).toString()
     const res = await apiFetch(`/api/shifts${q ? `?${q}` : ''}`)
-    // Normalize for frontend components expecting `date` as YYYY-MM-DD
-    shifts.value = res.shifts.map(s => ({
-      ...s,
-      date: new Date(s.date).toISOString().slice(0, 10),
-      role: s.roleName, // backward-compat for components using `role`
-      applicants: undefined
-    }))
+    shifts.value = (res.shifts || []).map(normalizeShift)
     return shifts.value
   }
 
   async function createShift(newShift) {
     const body = {
-      business: newShift.business || 'Shiftly Business',
-      roleName: newShift.role || newShift.roleName,
-      date: newShift.date, // YYYY-MM-DD
+      business: newShift.business,
+      location: newShift.location || null,
+      notes: newShift.notes || null,
+      roleName: newShift.roleName || newShift.role,
+      date: newShift.date,
       startTime: newShift.startTime,
       endTime: newShift.endTime,
-      pay: newShift.pay,
+      pay: newShift.pay || null,
       workerId: newShift.workerId || null,
-      status: newShift.status === 'open' || newShift.status === 'OPEN' ? 'OPEN' : 'ACTIVE'
+      status: newShift.workerId ? 'ACTIVE' : (newShift.status || 'OPEN'),
+      visibility: newShift.workerId ? 'COMPANY' : (newShift.visibility || 'GLOBAL')
     }
+
     const res = await apiFetch('/api/shifts', { method: 'POST', body })
     await fetchManagerShifts()
     return res.shift
   }
 
+  async function addShift(shift) {
+    return await createShift(shift)
+  }
+
   async function updateShift(updatedShift) {
     const body = {
       business: updatedShift.business,
-      roleName: updatedShift.role || updatedShift.roleName,
+      location: updatedShift.location,
+      notes: updatedShift.notes,
+      roleName: updatedShift.roleName || updatedShift.role,
       date: updatedShift.date,
       startTime: updatedShift.startTime,
       endTime: updatedShift.endTime,
       pay: updatedShift.pay,
       workerId: updatedShift.workerId,
-      status: updatedShift.status
+      status: updatedShift.status,
+      visibility: updatedShift.visibility
     }
     const res = await apiFetch(`/api/shifts/${updatedShift.id}`, { method: 'PATCH', body })
     await fetchManagerShifts()
@@ -69,88 +80,63 @@ export const useShiftStore = defineStore('shifts', () => {
     await fetchManagerShifts()
   }
 
-  async function publishShift(id) {
-    // Set to OPEN (and clear worker)
-    await apiFetch(`/api/shifts/${id}`, { method: 'PATCH', body: { status: 'OPEN', workerId: null } })
-    await fetchManagerShifts()
-  }
-
-  // --- Worker actions ---
   async function fetchMarketplace() {
-    try {
-      const res = await apiFetch('/api/marketplace/shifts')
-      shifts.value = res.shifts.map(s => ({
-        ...s,
-        date: new Date(s.date).toISOString().slice(0, 10),
-        role: s.roleName,
-      }))
-    } catch (e) {
-      console.warn('Backend unavailable, using fake marketplace data')
-      shifts.value = [
-        { 
-          id: 1000, date: '2026-03-05', role: 'Bartender', roleName: 'Bartender', business: 'The Corner Pub', startTime: '18:00', endTime: '02:00', pay: '$150', status: 'OPEN',
-          tasks: ['Mix and serve drinks', 'Chat with customers', 'Keep bar area clean'],
-          expectations: 'Fast-paced environment, need to handle multiple orders at once.',
-          requirements: ['2+ years experience', 'Knowledge of classic cocktails']
-        },
-        { 
-          id: 1001, date: '2026-03-06', role: 'Waiter', roleName: 'Waiter', business: 'Fine Dine Restaurant', startTime: '17:00', endTime: '23:00', pay: '$120', status: 'OPEN',
-          tasks: ['Take orders and serve food', 'Ensure guest satisfaction', 'Handle payments'],
-          expectations: 'High standard of customer service, professional demeanor.',
-          requirements: ['Previous fine dining experience', 'Excellent communication skills']
-        },
-        { 
-          id: 1002, date: '2026-03-10', role: 'Barista', roleName: 'Barista', business: 'Morning Coffee Shop', startTime: '06:00', endTime: '14:00', pay: '$100', status: 'OPEN',
-          tasks: ['Prepare coffee beverages', 'Operate espresso machine', 'Manage cash register'],
-          expectations: 'Friendly attitude, ability to remember regular customers\' orders.',
-          requirements: ['Latte art skills preferred', 'Early riser']
-        }
-      ]
-    }
-    return shifts.value
+    const res = await apiFetch('/api/marketplace/shifts')
+    marketplaceShifts.value = (res.shifts || []).map(normalizeShift)
+    return marketplaceShifts.value
   }
 
   async function applyToShift(shiftId) {
     await apiFetch(`/api/marketplace/shifts/${shiftId}/apply`, { method: 'POST' })
     await fetchMarketplace()
+    await fetchMyApplications()
   }
 
   async function fetchMyShifts() {
     const res = await apiFetch('/api/shifts/me')
-    shifts.value = res.shifts.map(s => ({
-      ...s,
-      date: new Date(s.date).toISOString().slice(0, 10),
-      role: s.roleName
-    }))
+    shifts.value = (res.shifts || []).map(normalizeShift)
     return shifts.value
   }
 
-  // --- Manager: applicants + assign ---
   async function fetchApplicants(shiftId) {
     const res = await apiFetch(`/api/marketplace/shifts/${shiftId}/applicants`)
-    return res.applicants
+    return res.applicants || []
   }
 
   async function assignApplicant(shiftId, applicationId) {
-    const res = await apiFetch(`/api/marketplace/shifts/${shiftId}/assign`, { method: 'POST', body: { applicationId } })
+    const res = await apiFetch(`/api/marketplace/shifts/${shiftId}/assign`, {
+      method: 'POST',
+      body: { applicationId }
+    })
     await fetchManagerShifts()
     return res
   }
 
+  async function fetchMyApplications() {
+    const res = await apiFetch('/api/marketplace/applications/me')
+    applications.value = (res.applications || []).map(app => ({
+      ...app,
+      shift: app.shift ? normalizeShift(app.shift) : null
+    }))
+    return applications.value
+  }
+
   return {
     shifts,
+    marketplaceShifts,
+    applications,
     openShifts,
     getShiftById,
-    myApplications,
     fetchManagerShifts,
     createShift,
+    addShift,
     updateShift,
     deleteShift,
-    publishShift,
     fetchMarketplace,
     applyToShift,
     fetchMyShifts,
     fetchApplicants,
-    assignApplicant
+    assignApplicant,
+    fetchMyApplications
   }
 })

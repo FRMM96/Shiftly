@@ -1,5 +1,9 @@
+
+
+
+
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted, onMounted } from 'vue'
 import { useStaffStore } from '../../stores/staffStore'
 import BaseButton from '../shared/BaseButton.vue'
 const props = defineProps({
@@ -10,6 +14,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'editShift', 'updateShift', 'deleteShift'])
 
 const staffStore = useStaffStore()
+onMounted(() => { staffStore.fetchStaff().catch(() => {}) })
 
 const currentTime = ref(new Date())
 let timer = null
