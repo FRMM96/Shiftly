@@ -1,36 +1,63 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { apiFetch } from '../lib/api'
+import api from '../services/api'
 
-export const useNotificationStore = defineStore('notifications', () => {
+export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref([])
+  const unreadCount = ref(0)
+  const loading = ref(false)
 
-  const unreadCount = computed(() =>
-    notifications.value.filter(n => !n.isRead).length
-  )
+  const notificationsByGroup = computed(() => {
+    const groups = {}
+    for (const n of notifications.value) {
+      const dateKey = new Date(n.createdAt).toLocaleDateString('en-US', {
+        month: 'long', day: 'numeric', year: 'numeric'
+      })
+      if (!groups[dateKey]) groups[dateKey] = []
+      groups[dateKey].push({
+        ...n,
+        isUnread: !n.read,
+        dateGroup: dateKey
+      })
+    }
+    return groups
+  })
 
-  async function fetchMyNotifications() {
-    const res = await apiFetch('/api/notifications/me')
-    notifications.value = res.notifications || []
-    return notifications.value
-  }
-
-  async function markAsRead(id) {
-    await apiFetch(`/api/notifications/${id}/read`, { method: 'PATCH' })
-    const item = notifications.value.find(n => n.id === id)
-    if (item) item.isRead = true
+  async function fetchNotifications(page = 1) {
+    loading.value = true
+    try {
+      const response = await api.get(`/notifications?page=${page}&limit=20`)
+      notifications.value = response.data.notifications
+      unreadCount.value = response.data.unread
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err)
+    } finally {
+      loading.value = false
+    }
   }
 
   async function markAllAsRead() {
-    await apiFetch('/api/notifications/read-all', { method: 'PATCH' })
-    notifications.value = notifications.value.map(n => ({ ...n, isRead: true }))
+    try {
+      await api.patch('/notifications/read-all')
+      notifications.value.forEach(n => { n.read = true })
+      unreadCount.value = 0
+    } catch (err) {
+      console.error('Failed to mark all as read:', err)
+    }
   }
 
-  return {
-    notifications,
-    unreadCount,
-    fetchMyNotifications,
-    markAsRead,
-    markAllAsRead
+  async function markAsRead(id) {
+    try {
+      await api.patch(`/notifications/${id}/read`)
+      const n = notifications.value.find(n => n.id === id)
+      if (n) {
+        n.read = true
+        unreadCount.value = Math.max(0, unreadCount.value - 1)
+      }
+    } catch (err) {
+      console.error('Failed to mark as read:', err)
+    }
   }
+
+  return { notifications, notificationsByGroup, unreadCount, loading, fetchNotifications, markAllAsRead, markAsRead }
 })

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
 import { useShiftStore } from '../../stores/shiftStore'
 import { useUserStore } from '../../stores/userStore'
 
@@ -12,17 +13,19 @@ const userStore = useUserStore()
 const employees = ref([])
 const loadingEmployees = ref(false)
 
+// --- Form state ---
+const todayStr = new Date().toISOString().slice(0, 10)
+
 const form = ref({
-  business: '',
-  location: '',
-  workDate: route.query.date || '',
-  startHour: '09',
-  startMinute: '00',
-  endHour: '17',
-  endMinute: '00',
+  workDate: todayStr,
+  startTime: '09:00',
+  endTime: '17:00',
   role: '',
   workerId: route.query.workerId || '',
   workersNeeded: '',
+  pay: '',
+  currency: 'SEK',
+  priority: 'NORMAL',
   notes: ''
 })
 
@@ -48,8 +51,10 @@ onMounted(async () => {
 })
 
 const projectedCost = computed(() => {
-  if (form.value.workersNeeded) {
-    return (Number(form.value.workersNeeded) * 84).toFixed(2)
+  const workers = Number(form.value.workersNeeded) || 0
+  const rate = Number(form.value.pay) || 0
+  if (workers && rate) {
+    return (workers * rate).toFixed(2)
   }
   return '0.00'
 })
@@ -68,6 +73,42 @@ const handlePostShift = async () => {
     return
   }
 
+  // --- Strict payload serialization ---
+
+  // 1. Date: parse the user input and extract local Y/M/D parts to avoid
+  //    timezone drift that .toISOString() would introduce.
+  const rawDate = new Date(form.value.workDate)
+  const yyyy = rawDate.getFullYear()
+  const mm   = String(rawDate.getMonth() + 1).padStart(2, '0')
+  const dd   = String(rawDate.getDate()).padStart(2, '0')
+  const isoDate = `${yyyy}-${mm}-${dd}`
+
+  // 2. Times: native <input type="time"> gives us HH:MM in 24h format — use directly.
+  const startTime = form.value.startTime.trim()
+  const endTime   = form.value.endTime.trim()
+
+  // 3. Pay: combine the numeric value and currency into a String as required
+  //    by the backend schema (Prisma expects String or Null, not Int/Float).
+  const pay = form.value.pay ? `${form.value.pay} ${form.value.currency}` : null
+
+  // 4. Assemble the final payload with all fields the API contract requires.
+  const formattedPayload = {
+    business:  'Shiftly Business',          // required by backend
+    roleName:  roleNameMap[form.value.role] || form.value.role,
+    date:      isoDate,                     // guaranteed YYYY-MM-DD
+    startTime,
+    endTime,
+    pay,
+    priority:  form.value.priority || 'NORMAL',
+    status:    'OPEN',                      // backend enum value
+    notes:     form.value.notes?.trim() || undefined
+  }
+
+  console.log('Button clicked! Payload:', formattedPayload)
+
+  submitting.value = true
+  try {
+    await shiftStore.createShift(formattedPayload)
   submitting.value = true
   try {
     await shiftStore.createShift({
@@ -112,15 +153,29 @@ const closeModal = () => {
       </p>
     </div>
 
-    <div class="form-card">
-      <div class="form-grid">
-        <div class="form-section">
-          <h3 class="section-title">SHIFT TIMING</h3>
+        <form class="form-card" @submit.prevent="handleSubmit">
+          
+          <div class="form-grid">
+            
+            <div class="form-section">
+              <h3 class="section-title">SHIFT TIMING</h3>
+              
+              <div class="form-group">
+                <label>Work Date</label>
+                <input type="date" v-model="form.workDate" />
+              </div>
 
-          <div class="form-group">
-            <label>Business</label>
-            <input type="text" v-model="form.business" placeholder="e.g. Radix HQ" />
-          </div>
+              <div class="time-row">
+                <div class="form-group flex-1">
+                  <label>Start Time</label>
+                  <input type="time" v-model="form.startTime" />
+                </div>
+
+                <div class="form-group flex-1">
+                  <label>End Time</label>
+                  <input type="time" v-model="form.endTime" />
+                </div>
+              </div>
 
           <div class="form-group">
             <label>Work Location</label>
@@ -146,17 +201,40 @@ const closeModal = () => {
               </div>
             </div>
 
-            <div class="form-group flex-1">
-              <label>End Time</label>
-              <div class="time-select-group">
-                <select v-model="form.endHour">
-                  <option v-for="h in hourOptions" :key="h" :value="h">{{ h }}</option>
-                </select>
-                <span class="time-separator">:</span>
-                <select v-model="form.endMinute">
-                  <option v-for="m in minuteOptions" :key="m" :value="m">{{ m }}</option>
-                </select>
+              <div class="form-group">
+                <label>Priority</label>
+                <div class="input-wrapper select-wrapper">
+                  <svg class="input-icon left" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+                  <select v-model="form.priority">
+                    <option value="LOW">Low</option>
+                    <option value="NORMAL">Normal</option>
+                    <option value="URGENT">Urgent</option>
+                  </select>
+                  <svg class="select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </div>
               </div>
+
+              <div class="form-group">
+                <label>Pay Rate</label>
+                <div class="pay-row">
+                  <div class="input-wrapper" style="flex: 1;">
+                    <svg class="input-icon left" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                    <input type="number" v-model="form.pay" placeholder="e.g. 25.00" min="0" step="0.01" />
+                  </div>
+                  <div class="input-wrapper select-wrapper currency-select">
+                    <select v-model="form.currency">
+                      <option value="SEK">SEK</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="GBP">GBP</option>
+                      <option value="CAD">CAD</option>
+                      <option value="AUD">AUD</option>
+                    </select>
+                    <svg class="select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -169,25 +247,24 @@ const closeModal = () => {
             <input type="text" v-model="form.role" placeholder="e.g. Bartender, Nurse, Warehouse Worker" />
           </div>
 
-          <div class="form-group">
-            <label>Assign existing employee (optional)</label>
-            <select v-model="form.workerId">
-              <option value="">No employee selected → create global shift</option>
-              <option v-for="emp in employees" :key="emp.id" :value="emp.id">
-                {{ emp.username }} — {{ emp.email }}
-              </option>
-            </select>
-            <small class="helper">
-              {{ isAssignedShift ? 'This will become a company-assigned shift.' : 'This will become a global open shift visible across companies.' }}
-            </small>
+          <div class="form-footer">
+            <div class="footer-info">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+              <span>Posting will notify {{ eligibleWorkersCount }} eligible workers.</span>
+            </div>
+            <div class="footer-actions">
+              <button type="button" class="btn btn-ghost" @click="handleSaveDraft" :disabled="submitting">Save Draft</button>
+              <button type="submit" class="btn btn-primary" :disabled="submitting">
+                <span v-if="submitting">Posting...</span>
+                <template v-else>
+                  Post Shift
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </template>
+              </button>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label>Workers Needed</label>
-            <input type="number" v-model="form.workersNeeded" placeholder="e.g. 5" min="1" />
-          </div>
-        </div>
-      </div>
+        </form>
 
       <div class="form-group notes-group">
         <label>Internal Notes (Optional)</label>
@@ -221,15 +298,15 @@ const closeModal = () => {
     </div>
   </ManagerLayout>
 
-  <Teleport to="body">
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-box">
-        <h3>{{ modalSuccess ? 'Success' : 'Error' }}</h3>
-        <p>{{ modalMessage }}</p>
-        <button class="btn btn-primary modal-close-btn" @click="closeModal">Got it</button>
-      </div>
-    </div>
-  </Teleport>
+  <!-- Result Modal -->
+  <ConfirmModal
+    :is-open="showModal"
+    :title="modalSuccess ? 'Success!' : 'Error'"
+    :message="modalMessage"
+    :type="modalSuccess ? 'success' : 'danger'"
+    @close="closeModal"
+  />
+
 </template>
 
 <style scoped>
@@ -271,7 +348,22 @@ const closeModal = () => {
   font-weight: 600;
 }
 
-input, select, textarea {
+/* Input Styling */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  color: #9CA3AF;
+  pointer-events: none;
+}
+.input-icon.left { left: 12px; }
+.input-icon.right { right: 12px; }
+
+input[type="text"], input[type="number"], input[type="date"], input[type="time"], select, textarea {
   width: 100%;
   padding: 0.85rem 1rem;
   border: 1px solid #cbd5e1;
@@ -285,9 +377,19 @@ textarea {
   resize: vertical;
 }
 
-.time-row {
+/* Time Row / Pay Row styling */
+.time-row, .pay-row {
   display: flex;
   gap: 1rem;
+}
+
+.currency-select {
+  width: 110px;
+  flex-shrink: 0;
+}
+.currency-select select {
+  padding-left: 1rem;
+  padding-right: 2rem;
 }
 
 .flex-1 { flex: 1; }
@@ -386,16 +488,12 @@ textarea {
   margin-top: 1rem;
 }
 
+/* Responsive Adjustments */
 @media (max-width: 900px) {
   .form-grid, .bottom-cards-row { grid-template-columns: 1fr; }
   .time-row { flex-direction: column; }
 }
 
-@media (max-width: 600px) {
-  .form-footer {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-}
+.breadcrumb-link { color: inherit; text-decoration: none; }
+.breadcrumb-link:hover { text-decoration: underline; }
 </style>

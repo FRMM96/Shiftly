@@ -1,35 +1,86 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
+import { useShiftStore } from '../../stores/shiftStore'
+import {
+  format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
+  eachDayOfInterval, isSameMonth, isSameDay, isToday,
+  addMonths, subMonths
+} from 'date-fns'
 
-// --- Mock Data ---
-// Recreating the exact visual state of the calendar in the image
-const calendarDays = ref([
-  { date: null }, { date: null }, { date: null }, 
-  { date: 1, hasLine: true }, { date: 2 }, { date: 3 }, { date: 4 },
-  { 
-    date: 5, 
-    isSelected: true, 
-    pills: [
-      { text: 'Morning 4/4', type: 'green' },
-      { text: 'Afternoon 3/3', type: 'blue' }
-    ] 
-  }, 
-  { date: 6 }, { date: 7 }, { date: 8 }, { date: 9 }, { date: 10 }, { date: 11 },
-  { date: 12 }, { date: 13 }, { date: 14 }, { date: 15 }, { date: 16 }, { date: 17 }, { date: 18 },
-  { date: 19 }, { date: 20 }, { date: 21 }, { date: 22 }, { date: 23 }, { date: 24 }, { date: 25 }
-])
+const router = useRouter()
+const shiftStore = useShiftStore()
 
-const morningStaff = ref([
-  { id: 1, name: 'Marcus Cooper', role: 'Lead Operations', initials: 'MC', color: '#2E7D32' },
-  { id: 2, name: 'Sarah Jenkins', role: 'Logistics Coordinator', initials: 'SJ', color: '#E0E0E0', textDark: true },
-  { id: 3, name: 'David Chen', role: 'Support Specialist', initials: 'DC', color: '#37474F' }
-])
+const currentMonth = ref(new Date())
+const selectedDate = ref(new Date())
 
-const afternoonStaff = ref([
-  { id: 4, name: 'Elena Rodriguez', role: 'Operations Associate', initials: 'ER', color: '#2E7D32' },
-  { id: 5, name: 'Liam Taylor', role: 'Support Specialist', initials: 'LT', color: '#E0E0E0', textDark: true }
-])
+const monthLabel = computed(() => format(currentMonth.value, 'MMMM yyyy'))
+
+const goToday = () => {
+  currentMonth.value = new Date()
+  selectedDate.value = new Date()
+}
+const goPrev = () => { currentMonth.value = subMonths(currentMonth.value, 1) }
+const goNext = () => { currentMonth.value = addMonths(currentMonth.value, 1) }
+
+const calendarDays = computed(() => {
+  const monthStart = startOfMonth(currentMonth.value)
+  const monthEnd = endOfMonth(currentMonth.value)
+  const calStart = startOfWeek(monthStart, { weekStartsOn: 0 })
+  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 0 })
+  const days = eachDayOfInterval({ start: calStart, end: calEnd })
+
+  return days.map(day => {
+    const dateStr = format(day, 'yyyy-MM-dd')
+    const dayShifts = shiftStore.shifts.filter(s => s.date === dateStr)
+    const pills = dayShifts.map(s => ({
+      text: `${s.roleName} ${s.startTime}`,
+      type: s.status === 'ACTIVE' ? 'green' : 'blue'
+    }))
+
+    return {
+      date: isSameMonth(day, currentMonth.value) ? day.getDate() : null,
+      fullDate: day,
+      dateStr,
+      isSelected: isSameDay(day, selectedDate.value),
+      isToday: isToday(day),
+      pills: pills.length > 0 ? pills : undefined
+    }
+  })
+})
+
+const selectDay = (day) => {
+  if (!day.date) return
+  selectedDate.value = day.fullDate
+  router.push(`/manager/schedule/day/${day.dateStr}`)
+}
+
+// Shifts for the selected day
+const selectedDayShifts = computed(() => {
+  const dateStr = format(selectedDate.value, 'yyyy-MM-dd')
+  return shiftStore.shifts.filter(s => s.date === dateStr)
+})
+
+const morningShifts = computed(() =>
+  selectedDayShifts.value.filter(s => {
+    const hour = parseInt(s.startTime?.split(':')[0] || '12')
+    return hour < 12
+  })
+)
+
+const afternoonShifts = computed(() =>
+  selectedDayShifts.value.filter(s => {
+    const hour = parseInt(s.startTime?.split(':')[0] || '0')
+    return hour >= 12
+  })
+)
+
+const selectedDayLabel = computed(() => format(selectedDate.value, 'EEEE, MMMM d'))
+
+onMounted(() => {
+  shiftStore.fetchManagerShifts().catch(() => {})
+})
 </script>
 
 <template>
@@ -37,11 +88,11 @@ const afternoonStaff = ref([
         
         <div class="calendar-toolbar">
           <div class="month-nav">
-            <h1>October 2023</h1>
+            <h1>{{ monthLabel }}</h1>
             <div class="date-controls">
-              <button class="icon-btn-sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
-              <button class="today-btn">Today</button>
-              <button class="icon-btn-sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+              <button class="icon-btn-sm" @click="goPrev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+              <button class="today-btn" @click="goToday">Today</button>
+              <button class="icon-btn-sm" @click="goNext"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
             </div>
           </div>
           
@@ -50,7 +101,7 @@ const afternoonStaff = ref([
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
               Filter
             </button>
-            <button class="btn btn-primary">
+            <button class="btn btn-primary" @click="router.push('/manager/shift')">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               Create Shift
             </button>
@@ -62,14 +113,15 @@ const afternoonStaff = ref([
             <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
           </div>
           <div class="days-grid">
-            <div 
-              v-for="(day, index) in calendarDays" 
+            <div
+              v-for="(day, index) in calendarDays"
               :key="index"
               class="day-cell"
-              :class="{ 'selected': day.isSelected, 'empty': !day.date }"
+              :class="{ 'selected': day.isSelected, 'empty': !day.date, 'today': day.isToday }"
+              @click="selectDay(day)"
+              :style="day.date ? 'cursor:pointer' : ''"
             >
-              <span v-if="day.date" class="date-num">{{ day.date }}</span>
-              <div v-if="day.hasLine" class="event-line"></div>
+              <span v-if="day.date" class="date-num" :class="{ 'today-num': day.isToday }">{{ day.date }}</span>
               
               <div v-if="day.pills" class="pill-container">
                 <div v-for="(pill, pIndex) in day.pills" :key="pIndex" class="shift-pill" :class="pill.type">
@@ -82,8 +134,8 @@ const afternoonStaff = ref([
 
         <div class="coverage-section">
           <div class="coverage-header">
-            <h2>Daily Coverage <span class="date-subtitle">— Thursday, October 5</span></h2>
-            <a href="#" class="manage-link">Manage All Shifts</a>
+            <h2>Daily Coverage <span class="date-subtitle">— {{ selectedDayLabel }}</span></h2>
+            <router-link to="/manager/shift" class="manage-link">Manage All Shifts</router-link>
           </div>
 
           <div class="coverage-cards-grid">
@@ -101,13 +153,14 @@ const afternoonStaff = ref([
               </div>
               
               <div class="staff-list">
-                <div v-for="staff in morningStaff" :key="staff.id" class="staff-row">
-                  <div class="staff-avatar" :style="{ backgroundColor: staff.color, color: staff.textDark ? '#000' : '#fff' }"></div>
+                <div v-if="morningShifts.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No morning shifts scheduled.</div>
+                <div v-for="shift in morningShifts" :key="shift.id" class="staff-row">
+                  <div class="staff-avatar" style="background-color: #2E7D32; color: #fff;"></div>
                   <div class="staff-info">
-                    <strong>{{ staff.name }}</strong>
-                    <span>{{ staff.role }}</span>
+                    <strong>{{ shift.worker?.username || 'Unassigned' }}</strong>
+                    <span>{{ shift.roleName }} ({{ shift.startTime }} - {{ shift.endTime }})</span>
                   </div>
-                  <button class="options-btn">
+                  <button class="options-btn" @click="router.push(`/manager/shift/${shift.id}`)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
                   </button>
                 </div>
@@ -119,28 +172,29 @@ const afternoonStaff = ref([
                 <div class="shift-title">
                   <div class="shift-icon cloud"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg></div>
                   <div>
-                    <h3>Afternoon Shift</h3>
-                    <p>12:00 PM - 04:00 PM</p>
+                    <h3>Afternoon Shifts</h3>
+                    <p>12:00 - 23:59</p>
                   </div>
                 </div>
-                <span class="status-badge in-progress">In Progress</span>
+                <span class="status-badge in-progress">{{ afternoonShifts.length }} shift{{ afternoonShifts.length !== 1 ? 's' : '' }}</span>
               </div>
-              
+
               <div class="staff-list">
-                <div v-for="staff in afternoonStaff" :key="staff.id" class="staff-row">
-                  <div class="staff-avatar" :style="{ backgroundColor: staff.color, color: staff.textDark ? '#000' : '#fff' }"></div>
+                <div v-if="afternoonShifts.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No afternoon shifts scheduled.</div>
+                <div v-for="shift in afternoonShifts" :key="shift.id" class="staff-row">
+                  <div class="staff-avatar" style="background-color: #37474F; color: #fff;"></div>
                   <div class="staff-info">
-                    <strong>{{ staff.name }}</strong>
-                    <span>{{ staff.role }}</span>
+                    <strong>{{ shift.worker?.username || 'Unassigned' }}</strong>
+                    <span>{{ shift.roleName }} ({{ shift.startTime }} - {{ shift.endTime }})</span>
                   </div>
-                  <button class="options-btn">
+                  <button class="options-btn" @click="router.push(`/manager/shift/${shift.id}`)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
                   </button>
                 </div>
-                
-                <button class="btn-dashed">
+
+                <button class="btn-dashed" @click="router.push('/manager/shift')">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                  Assign Staff
+                  Create Shift
                 </button>
               </div>
             </div>
@@ -153,24 +207,6 @@ const afternoonStaff = ref([
 
 <style scoped>
 /* --- Variables & Reset --- */
-:root {
-  --primary: #0052CC; /* Main Blue */
-  --primary-hover: #0043A6;
-  --bg-main: #FFFFFF;
-  --bg-sidebar: #FFFFFF;
-  --bg-app: #FAFAFB;
-  
-  --text-dark: #111827;
-  --text-muted: #6B7280;
-  --border-light: #F3F4F6;
-  --border: #E5E7EB;
-  
-  /* Status Colors */
-  --green-light: #D1FAE5;
-  --green-text: #059669;
-  --blue-light: #DBEAFE;
-  --blue-text: #2563EB;
-}
 
 /* --- Calendar Header --- */
 .calendar-toolbar {
@@ -330,6 +366,17 @@ const afternoonStaff = ref([
   z-index: 2;
   box-shadow: inset 0 0 0 3px var(--primary);
   background-color: #F8FAFF;
+}
+
+.today-num {
+  background-color: var(--primary);
+  color: #fff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* --- Daily Coverage Section --- */

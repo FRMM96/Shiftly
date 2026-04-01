@@ -74,14 +74,6 @@
 
 <style scoped>
 /* CSS Variables for colors based on image */
-:root {
-  --bg-color: #EFF3F8; /* Light blue-grey page background */
-  --main-text-color: #1F2937; /* Dark black/grey for titles */
-  --primary-blue: #2563EB; /* Main brand blue */
-  --link-color: #374151; /* Grey for footer links */
-  --footer-text-color: #9CA3AF; /* Lighter grey for copyright text */
-  --card-bg: #FFFFFF; /* White background for cards and header */
-}
 
 /* Base Reset to isolate styles for this demo */
 *, *::before, *::after {

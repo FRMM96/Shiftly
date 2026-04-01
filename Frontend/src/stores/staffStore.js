@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { apiFetch } from '../lib/api'
+import api from '../services/api'
 
 export const useStaffStore = defineStore('staff', () => {
   const staffList = ref([])
@@ -11,29 +11,40 @@ export const useStaffStore = defineStore('staff', () => {
     loading.value = true
     error.value = ''
     try {
-      const res = await apiFetch('/api/users?role=EMPLOYEE')
-      staffList.value = (res.users || []).map(u => ({
+      const response = await api.get('/users?role=EMPLOYEE')
+      // Map backend user to the frontend shape
+      staffList.value = (response.data.users || []).map(u => ({
         id: u.id,
         name: u.username,
-        username: u.username,
-        email: u.email,
         role: u.role,
-        initials: String(u.username || 'U')
-          .split(' ')
-          .map(x => x[0])
-          .join('')
-          .slice(0, 2)
-          .toUpperCase()
+        department: 'General',
+        team: '',
+        email: u.email,
+        status: 'Active',
+        statusType: 'success',
+        dotColor: 'bg-green',
+        avatar: null,
+        initials: String(u.username).substring(0,2).toUpperCase()
       }))
-      return staffList.value
     } catch (e) {
-      error.value = e.message || 'Failed to load staff'
-      staffList.value = []
-      throw e
+      error.value = e.response?.data?.message || e.message || 'Failed to fetch staff'
     } finally {
       loading.value = false
     }
   }
 
-  return { staffList, loading, error, fetchStaff }
+  const searchQuery = ref('')
+  const selectedDepartment = ref('All')
+  const selectedStatus = ref('All')
+
+  const clearFilters = () => {
+    searchQuery.value = ''
+    selectedDepartment.value = 'All'
+    selectedStatus.value = 'All'
+  }
+
+  // Alias for backward compatibility if any view uses fetchEmployees still
+  const fetchEmployees = fetchStaff
+
+  return { staffList, searchQuery, selectedDepartment, selectedStatus, clearFilters, fetchEmployees, fetchStaff, loading, error }
 })

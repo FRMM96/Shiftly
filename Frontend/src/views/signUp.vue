@@ -36,6 +36,10 @@ const handleSignUp = async () => {
     error.value = 'You must agree to the Terms of Service and Privacy Policy.'
     return
   }
+  if (role.value === 'BOSS' && !companyName.value.trim() && !inviteCode.value.trim()) {
+    error.value = 'Managers must provide a new Company Name or an existing Invite Code.'
+    return
+  }
 
   loading.value = true
   error.value = ''
@@ -47,8 +51,7 @@ const handleSignUp = async () => {
       password: password.value,
       role: role.value,
       inviteCode: inviteCode.value,
-      companyName: companyName.value,
-      dob: dob.value
+      companyName: companyName.value
     })
 
     if (res?.companyInviteCode) {
@@ -63,7 +66,11 @@ const handleSignUp = async () => {
       query: { prefill: email.value || fullName.value, justSignedUp: '1' }
     })
   } catch (e) {
-    error.value = e.message || 'Sign up failed'
+    if (e.response?.data?.errors && Array.isArray(e.response.data.errors)) {
+      error.value = e.response.data.errors.join(', ')
+    } else {
+      error.value = e.response?.data?.message || e.message || 'Sign up failed'
+    }
   } finally {
     loading.value = false
   }
@@ -234,13 +241,6 @@ const handleSignUp = async () => {
 </template>
 
 <style scoped>
-:root {
-  --primary: #0047FF; 
-  --text-main: #111827;
-  --text-muted: #6B7280;
-  --bg-color: #F8FAFC;
-  --border-color: #E2E8F0;
-}
 
 .signup-page {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;

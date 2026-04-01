@@ -17,6 +17,7 @@
     "@capacitor/core": "^8.1.0",
     "@capacitor/ios": "^8.1.0",
     "@daypilot/daypilot-lite-vue": "^5.2.0",
+    "axios": "^1.13.6",
     "bootstrap": "^5.3.8",
     "bootstrap-vue-next": "^0.42.0",
     "date-fns": "^4.1.0",

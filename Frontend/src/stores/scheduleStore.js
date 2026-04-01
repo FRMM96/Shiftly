@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { apiFetch } from '../lib/api'
+import api from '../services/api'
 
 export const useScheduleStore = defineStore('schedule', () => {
   // State: worker's assigned shifts, normalized for calendar UI
@@ -8,8 +8,12 @@ export const useScheduleStore = defineStore('schedule', () => {
   const loading = ref(false)
   const error = ref('')
 
+  // Selected shift detail (set when user clicks a calendar day)
+  const selectedShift = ref(null)
+
   function normalizeShiftToScheduleItem(s) {
-    const date = new Date(s.date).toISOString().slice(0, 10)
+    const d = new Date(s.date)
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const time = (s.startTime && s.endTime) ? `${s.startTime} - ${s.endTime}` : undefined
     return {
       id: s.id,
@@ -25,11 +29,11 @@ export const useScheduleStore = defineStore('schedule', () => {
     loading.value = true
     error.value = ''
     try {
-      const res = await apiFetch('/api/shifts/me', { method: 'GET', auth: true })
-      mySchedule.value = (res.shifts || []).map(normalizeShiftToScheduleItem)
+      const response = await api.get('/shifts/me')
+      mySchedule.value = (response.data.shifts || []).map(normalizeShiftToScheduleItem)
       return mySchedule.value
     } catch (e) {
-      error.value = e.message || 'Failed to load schedule'
+      error.value = e.response?.data?.message || e.message || 'Failed to load schedule'
       mySchedule.value = []
       throw e
     } finally {
@@ -37,15 +41,18 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   }
 
-  // These require backend support (time-off requests / sick leave).
-  // Keep them explicit so we don't accidentally fall back to hardcoded state.
-  async function markSick() {
-    throw new Error('Not implemented: connect markSick() to backend endpoint')
+  async function claimShift(shiftId) {
+    loading.value = true
+    error.value = ''
+    try {
+      await api.post(`/marketplace/shifts/${shiftId}/apply`)
+    } catch (e) {
+      error.value = e.response?.data?.message || e.message || 'Failed to apply to shift'
+      throw e
+    } finally {
+      loading.value = false
+    }
   }
 
-  async function requestTimeOff() {
-    throw new Error('Not implemented: connect requestTimeOff() to backend endpoint')
-  }
-
-  return { mySchedule, loading, error, fetchMySchedule, markSick, requestTimeOff }
+  return { mySchedule, loading, error, fetchMySchedule, claimShift, selectedShift }
 })

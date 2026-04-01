@@ -1,5 +1,5 @@
 const prisma = require("../db/prisma");
-const { sendEmail } = require('../lib/mailer')
+const { notifyWorkers } = require("../helpers/notification");
 
 function parseDateOnlyToUTC(dateStr) {
   const [y, m, d] = String(dateStr).split("-").map(Number);
@@ -38,19 +38,7 @@ async function assertEmployeeExistsInMyCompany(workerId, companyId) {
 
 exports.createShift = async (req, res) => {
   try {
-    const {
-      business,
-      location,
-      notes,
-      roleName,
-      date,
-      startTime,
-      endTime,
-      pay,
-      workerId,
-      status,
-      visibility,
-    } = req.body;
+    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status } = req.body;
 
     if (!business || !roleName || !date || !startTime || !endTime) {
       return res.status(400).json({
@@ -61,7 +49,10 @@ exports.createShift = async (req, res) => {
     const dt = parseDateOnlyToUTC(date);
     if (!dt) return res.status(400).json({ message: "Invalid date (expected YYYY-MM-DD)" });
 
-    const hasAssignedWorker = !!workerId;
+    const validPriorities = ["LOW", "NORMAL", "URGENT"];
+    const finalPriority = validPriorities.includes(priority) ? priority : "NORMAL";
+
+    const willBeOpen = status === "OPEN";
 
     if (hasAssignedWorker) {
       await assertEmployeeExistsInMyCompany(workerId, req.user.companyId);
@@ -85,8 +76,10 @@ exports.createShift = async (req, res) => {
         startTime,
         endTime,
         pay: pay || null,
-        status: finalStatus,
-        visibility: finalVisibility,
+        priority: finalPriority,
+
+        status: willBeOpen ? "OPEN" : "ACTIVE",
+
         managerId: req.user.id,
         companyId: finalVisibility === "GLOBAL" ? null : req.user.companyId,
         workerId: hasAssignedWorker ? workerId : null,
@@ -96,6 +89,13 @@ exports.createShift = async (req, res) => {
       },
     });
 
+    if (willBeOpen) {
+      await notifyWorkers(
+        req.user.companyId,
+        'SHIFT_AVAILABLE',
+        `New open shift: ${roleName} on ${date}`,
+        '/worker/marketplace'
+      );
         if (shift.visibility === "GLOBAL" && shift.status === "OPEN") {
       const employees = await prisma.user.findMany({
         where: { role: "EMPLOYEE" },
@@ -243,19 +243,7 @@ exports.updateShift = async (req, res) => {
     if (!existing) return res.status(404).json({ message: "Shift not found" });
     if (existing.managerId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
 
-    const {
-      business,
-      location,
-      notes,
-      roleName,
-      date,
-      startTime,
-      endTime,
-      pay,
-      workerId,
-      status,
-      visibility,
-    } = req.body;
+    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status } = req.body;
 
     const data = {};
 
@@ -266,6 +254,10 @@ exports.updateShift = async (req, res) => {
     if (startTime !== undefined) data.startTime = startTime;
     if (endTime !== undefined) data.endTime = endTime;
     if (pay !== undefined) data.pay = pay || null;
+    if (priority !== undefined) {
+      const validPriorities = ["LOW", "NORMAL", "URGENT"];
+      if (validPriorities.includes(priority)) data.priority = priority;
+    }
     if (status !== undefined) data.status = status;
 
     if (date !== undefined) {
@@ -308,10 +300,49 @@ exports.updateShift = async (req, res) => {
       },
     });
 
+    if (shift.status === "OPEN" && existing.status !== "OPEN") {
+      await notifyWorkers(
+        req.user.companyId,
+        'SHIFT_AVAILABLE',
+        `New open shift: ${shift.roleName} on ${shift.date.toISOString().split('T')[0]}`,
+        '/worker/marketplace'
+      );
+    }
+
     return res.json({ shift });
   } catch (err) {
     console.error(err);
     return res.status(err.statusCode || 500).json({ message: err.message || "Server error" });
+  }
+};
+
+exports.listUserShifts = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Verify the target user is in the same company
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, companyId: true, username: true },
+    });
+    if (!targetUser || targetUser.companyId !== req.user.companyId) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const shifts = await prisma.shift.findMany({
+      where: {
+        workerId: userId,
+        companyId: req.user.companyId,
+        status: { not: "CANCELED" },
+      },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      select: { id: true, roleName: true, date: true, startTime: true, endTime: true, business: true },
+    });
+
+    return res.json({ shifts });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 

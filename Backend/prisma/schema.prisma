@@ -26,9 +26,34 @@ enum ApplicationStatus {
   WITHDRAWN
 }
 
-enum ShiftVisibility {
-  COMPANY
-  GLOBAL
+enum ShiftPriority {
+  LOW
+  NORMAL
+  URGENT
+}
+
+enum TimeOffType {
+  ANNUAL
+  SICK
+  PERSONAL
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+enum ClockType {
+  CLOCK_IN
+  CLOCK_OUT
+}
+
+enum SwapStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
 }
 
 model Company {
@@ -38,8 +63,13 @@ model Company {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  users  User[]
-  shifts Shift[]
+  users             User[]
+  shifts            Shift[]
+  notifications     Notification[]
+  timeOffRequests   TimeOffRequest[]
+  sickLeaves        SickLeave[]
+  clockEvents       ClockEvent[]
+  shiftSwapRequests ShiftSwapRequest[]
 }
 
 model User {
@@ -48,14 +78,25 @@ model User {
   username     String   @unique
   passwordHash String
   role         Role     @default(EMPLOYEE)
+  phone        String?
+  department   String?
+  location     String?
+  emergencyContact String?
+  onboarded    Boolean  @default(false)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
-  managedShifts  Shift[]            @relation("ManagerShifts")
-  assignedShifts Shift[]            @relation("WorkerShifts")
-  applications   ShiftApplication[]
-  notifications Notification[]
+  // Relations
+  managedShifts       Shift[]            @relation("ManagerShifts")
+  assignedShifts      Shift[]            @relation("WorkerShifts")
+  applications        ShiftApplication[]
+  notifications       Notification[]
+  timeOffRequests     TimeOffRequest[]
+  sickLeaves          SickLeave[]
+  clockEvents         ClockEvent[]
+  swapRequestsMade    ShiftSwapRequest[] @relation("SwapRequester")
+  swapRequestsReceived ShiftSwapRequest[] @relation("SwapTarget")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -65,20 +106,19 @@ model User {
 }
 
 model Shift {
-  id         String          @id @default(cuid())
-  business   String
-  location   String?
-  notes      String?
-  roleName   String
-  date       DateTime
-  startTime  String
-  endTime    String
-  pay        String?
-  status     ShiftStatus     @default(ACTIVE)
-  visibility ShiftVisibility @default(COMPANY)
+  id        String      @id @default(cuid())
+  business  String
+  roleName  String
+  date      DateTime
+  startTime String
+  endTime   String
+  pay       String?
+  priority  ShiftPriority @default(NORMAL)
+  status    ShiftStatus   @default(ACTIVE)
 
-  companyId String?
-  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  // ✅ Company scoping
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   managerId String
   manager   User @relation("ManagerShifts", fields: [managerId], references: [id])
@@ -113,21 +153,104 @@ model ShiftApplication {
   @@index([status])
 }
 
-enum NotificationType {
-  GLOBAL_SHIFT_POSTED
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // e.g. "APPLICATION_RECEIVED", "SHIFT_ASSIGNED", "CLOCK_IN"
+  message   String
+  read      Boolean  @default(false)
+  actionUrl String?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([read])
 }
 
-model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      NotificationType
-  title     String
-  message   String
-  isRead    Boolean          @default(false)
-  link      String?
-  createdAt DateTime         @default(now())
+model TimeOffRequest {
+  id        String        @id @default(cuid())
+  startDate DateTime
+  endDate   DateTime
+  type      TimeOffType   @default(ANNUAL)
+  notes     String?
+  status    RequestStatus @default(PENDING)
 
-  @@index([userId, isRead])
-  @@index([createdAt])
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([status])
+}
+
+model SickLeave {
+  id           String        @id @default(cuid())
+  date         DateTime
+  reason       String?
+  status       RequestStatus @default(PENDING)
+  acknowledged Boolean       @default(false)
+
+  shiftId String?
+  userId  String
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([companyId])
+}
+
+model ClockEvent {
+  id        String    @id @default(cuid())
+  type      ClockType
+  timestamp DateTime  @default(now())
+  location  String?
+
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shiftId   String
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([shiftId])
+  @@index([companyId])
+}
+
+model ShiftSwapRequest {
+  id               String     @id @default(cuid())
+  status           SwapStatus @default(PENDING)
+
+  requesterId      String
+  requester        User       @relation("SwapRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  requesterShiftId String
+
+  targetWorkerId   String
+  targetWorker     User       @relation("SwapTarget", fields: [targetWorkerId], references: [id], onDelete: Cascade)
+  targetShiftId    String
+
+  companyId        String
+  company          Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([requesterId])
+  @@index([targetWorkerId])
+  @@index([companyId])
+  @@index([status])
 }

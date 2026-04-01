@@ -1,7 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
+import TabBar from '../../components/shared/TabBar.vue'
+import UserAvatar from '../../components/shared/UserAvatar.vue'
+import LoadMoreButton from '../../components/shared/LoadMoreButton.vue'
 import { useShiftStore } from '../../stores/shiftStore'
 
 const route = useRoute()
@@ -9,49 +13,30 @@ const router = useRouter()
 const shiftStore = useShiftStore()
 
 // --- State ---
-const assigning = ref(false)
+// Per-applicant loading: Map<applicantId, 'approve'|'reject'|null>
+const actionLoading = ref({})
 const showModal = ref(false)
 const modalSuccess = ref(false)
 const modalMessage = ref('')
+const modalTitle = ref('')
 
-// Applicants loaded from API or fallback mock
-const applicants = ref([
-  {
-    id: 1,
-    name: 'Alex Rivera',
-    avatar: 'https://i.pravatar.cc/150?u=alex_rivera_app',
-    rating: '4.9',
-    experience: '4 years',
-    reliability: '98%',
-    bio: 'Experienced warehouse professional with certification in forklift operation and inventory management. Consistently punctual and capable of handling high-volume logistics.',
-    stats: { completed: 142, distance: '2.4 miles' }
-  },
-  {
-    id: 2,
-    name: 'Sarah Jenkins',
-    avatar: 'https://i.pravatar.cc/150?u=sarah_jenkins_app',
-    rating: '4.7',
-    experience: '2 years',
-    reliability: '95%',
-    bio: 'Quick learner with strong attention to detail. Recently completed several packaging shifts at North Branch with positive supervisor feedback.',
-    stats: { completed: 56, distance: '5.1 miles' }
-  },
-  {
-    id: 3,
-    name: 'Marcus Thompson',
-    avatar: 'https://i.pravatar.cc/150?u=marcus_thompson_app',
-    rating: '4.5',
-    experience: '1 year',
-    reliability: '88%',
-    bio: 'Hard worker available for extra hours. Experience in manual labor and team collaboration. Good fit for heavy lifting tasks.',
-    stats: { completed: 24, distance: '1.2 miles' },
-    isWarning: true
-  }
-])
+const applicants = ref([])
 
 const activeTab = ref('pending')
 
+const shiftInfo = computed(() => {
+  const shiftId = route.params.id
+  const shift = shiftId ? shiftStore.getShiftById(shiftId) : null
+  if (shift) {
+    return `${shift.roleName || shift.role || 'Shift'} • ${shift.date} • ${shift.business || ''}`
+  }
+  return 'Shift Details'
+})
+
 onMounted(async () => {
+  if (shiftStore.shifts.length === 0) {
+    await shiftStore.fetchManagerShifts().catch(() => {})
+  }
   const shiftId = route.params.id
   if (shiftId) {
     try {
@@ -59,9 +44,9 @@ onMounted(async () => {
       if (fetched && fetched.length > 0) {
         applicants.value = fetched.map(a => ({
           id: a.id,
-          name: a.userName || a.username || 'Applicant',
+          name: a.user?.username || a.user?.name || a.userName || a.username || 'Applicant',
           avatar: a.avatar || `https://i.pravatar.cc/150?u=${a.id}`,
-          rating: a.rating || '4.5',
+          rating: a.rating || '—',
           experience: a.experience || 'N/A',
           reliability: a.reliability || 'N/A',
           bio: a.bio || 'No bio available.',
@@ -70,32 +55,59 @@ onMounted(async () => {
         }))
       }
     } catch {
-      // Keep fallback mock data
+      // No applicants found
     }
   }
 })
 
+const isApproving = (id) => actionLoading.value[id] === 'approve'
+const isRejecting = (id) => actionLoading.value[id] === 'reject'
+const isActing = (id) => !!actionLoading.value[id]
+
 const handleApprove = async (applicant) => {
   const shiftId = route.params.id
-  if (!confirm(`Are you sure you want to approve ${applicant.name}?`)) return
-  assigning.value = true
+  if (!confirm(`Approve ${applicant.name} for this shift?\n\nThis will automatically reject all other pending applicants.`)) return
+  actionLoading.value = { ...actionLoading.value, [applicant.id]: 'approve' }
   try {
-    await shiftStore.assignApplicant(shiftId, applicant.id)
+    await shiftStore.approveApplicant(shiftId, applicant.id)
+    // Remove all applicants from the list — shift is now ACTIVE
+    applicants.value = []
     modalSuccess.value = true
-    modalMessage.value = `${applicant.name} approved and assigned to the shift!`
+    modalTitle.value = 'Approved!'
+    modalMessage.value = `${applicant.name} has been approved and assigned to the shift. All other applicants have been notified.`
   } catch (e) {
     modalSuccess.value = false
-    modalMessage.value = e?.message || 'Failed to approve. Please try again.'
+    modalTitle.value = 'Error'
+    modalMessage.value = e?.message || 'Failed to approve applicant. Please try again.'
   } finally {
-    assigning.value = false
+    const updated = { ...actionLoading.value }
+    delete updated[applicant.id]
+    actionLoading.value = updated
     showModal.value = true
   }
 }
 
-const handleDeny = (applicant) => {
-  if (!confirm(`Are you sure you want to deny ${applicant.name}?`)) return
-  // Remove from local list as UI feedback
-  applicants.value = applicants.value.filter(a => a.id !== applicant.id)
+const handleDeny = async (applicant) => {
+  const shiftId = route.params.id
+  if (!confirm(`Are you sure you want to decline ${applicant.name}?`)) return
+  actionLoading.value = { ...actionLoading.value, [applicant.id]: 'reject' }
+  try {
+    await shiftStore.rejectApplicant(shiftId, applicant.id)
+    // Remove from local list
+    applicants.value = applicants.value.filter(a => a.id !== applicant.id)
+    modalSuccess.value = true
+    modalTitle.value = 'Declined'
+    modalMessage.value = `${applicant.name} has been removed from the applicant list.`
+  } catch (e) {
+    modalSuccess.value = false
+    modalTitle.value = 'Error'
+    modalMessage.value = e?.message || 'Failed to decline applicant. Please try again.'
+  } finally {
+    const updated = { ...actionLoading.value }
+    delete updated[applicant.id]
+    actionLoading.value = updated
+    showModal.value = true
+  }
 }
 
 const closeModal = () => {
@@ -103,7 +115,7 @@ const closeModal = () => {
 }
 
 const goBack = () => {
-  router.push('/manager/applicants')
+  router.back()
 }
 </script>
 
@@ -119,32 +131,18 @@ const goBack = () => {
             Back to Applicant Review
           </a>
           <h1 class="page-title">Shift Applicants</h1>
-          <p class="shift-subtitle">Night Shift • Friday, Oct 24 • North Branch Logistics Center</p>
+          <p class="shift-subtitle">{{ shiftInfo }}</p>
         </div>
 
-        <div class="tabs-container">
-          <button 
-            class="tab-btn" 
-            :class="{ active: activeTab === 'pending' }"
-            @click="activeTab = 'pending'"
-          >
-            Pending (12)
-          </button>
-          <button 
-            class="tab-btn" 
-            :class="{ active: activeTab === 'approved' }"
-            @click="activeTab = 'approved'"
-          >
-            Approved (5)
-          </button>
-          <button 
-            class="tab-btn" 
-            :class="{ active: activeTab === 'denied' }"
-            @click="activeTab = 'denied'"
-          >
-            Denied
-          </button>
-        </div>
+        <TabBar
+          :tabs="[
+            { value: 'pending', label: `Pending (${applicants.length})` },
+            { value: 'approved', label: 'Approved' },
+            { value: 'denied', label: 'Denied' }
+          ]"
+          v-model="activeTab"
+          style="margin-bottom: 1.5rem;"
+        />
 
       </div>
 
@@ -159,12 +157,18 @@ const goBack = () => {
         </button>
       </div>
 
-      <div class="applicants-list">
+      <div v-if="applicants.length === 0" style="text-align:center;padding:3rem;color:#6B7280;background:#fff;border:1px solid var(--border);border-radius:12px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5" style="margin-bottom:1rem;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+        <h3 style="font-size:1.1rem;font-weight:700;margin:0 0 0.25rem;">No applicants yet</h3>
+        <p style="margin:0;">There are no applicants for this shift.</p>
+      </div>
+
+      <div v-else class="applicants-list">
         
         <div v-for="applicant in applicants" :key="applicant.id" class="applicant-card">
           
           <div class="avatar-col">
-            <img :src="applicant.avatar" :alt="applicant.name" class="avatar-img" />
+            <UserAvatar :image-url="applicant.avatar" :name="applicant.name" size="lg" />
           </div>
 
           <div class="content-col">
@@ -172,13 +176,23 @@ const goBack = () => {
             <div class="card-top-row">
               <h2 class="applicant-name">{{ applicant.name }}</h2>
               <div class="action-buttons">
-                <button class="btn btn-approve" :disabled="assigning" @click="handleApprove(applicant)">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                  {{ assigning ? 'Approving...' : 'Approve' }}
+                <button
+                  class="btn btn-approve"
+                  :disabled="isActing(applicant.id)"
+                  @click="handleApprove(applicant)"
+                >
+                  <svg v-if="!isApproving(applicant.id)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <svg v-else class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10" /></svg>
+                  {{ isApproving(applicant.id) ? 'Approving...' : 'Approve' }}
                 </button>
-                <button class="btn btn-deny" @click="handleDeny(applicant)">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                  Deny
+                <button
+                  class="btn btn-deny"
+                  :disabled="isActing(applicant.id)"
+                  @click="handleDeny(applicant)"
+                >
+                  <svg v-if="!isRejecting(applicant.id)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <svg v-else class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10" /></svg>
+                  {{ isRejecting(applicant.id) ? 'Declining...' : 'Decline' }}
                 </button>
               </div>
             </div>
@@ -232,7 +246,7 @@ const goBack = () => {
             <svg v-if="modalSuccess" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
             <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
           </div>
-          <h3>{{ modalSuccess ? 'Approved!' : 'Error' }}</h3>
+          <h3>{{ modalTitle }}</h3>
           <p>{{ modalMessage }}</p>
         </div>
         <button class="btn btn-primary modal-close-btn" @click="closeModal">Got it</button>
@@ -242,30 +256,6 @@ const goBack = () => {
 </template>
 
 <style scoped>
-/* --- Variables & Reset --- */
-:root {
-  --primary: #3B82F6; /* Adjusted to match the specific blue in this image */
-  --primary-dark: #2563EB;
-  
-  --bg-main: #F9FAFB;
-  --bg-card: #FFFFFF;
-  
-  --text-dark: #111827;
-  --text-body: #4B5563;
-  --text-muted: #6B7280;
-  
-  --border: #E5E7EB;
-  
-  --success-bg: #10B981;
-  --success-text: #059669;
-  
-  --danger-bg: #FEF2F2;
-  --danger-border: #FCA5A5;
-  --danger-text: #DC2626;
-  
-  --warning-text: #D97706;
-  --star-color: #F59E0B;
-}
 
 /* --- Main Content --- */
 .main-content {
@@ -539,8 +529,6 @@ const goBack = () => {
 }
 .btn-load-more:hover { background-color: #F9FAFB; }
 
-
-
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .page-header-section {
@@ -603,4 +591,13 @@ const goBack = () => {
   cursor: pointer;
 }
 .btn-primary:hover { background-color: #1D4ED8; }
+
+@keyframes spin-anim {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin-anim 0.8s linear infinite;
+  display: inline-block;
+}
 </style>

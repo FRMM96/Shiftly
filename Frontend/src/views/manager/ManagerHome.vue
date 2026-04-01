@@ -3,13 +3,25 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
 import StatusBadge from '../../components/shared/StatusBadge.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
 import { useShiftStore } from '../../stores/shiftStore'
+import { useNotificationStore } from '../../stores/notificationStore'
+import { format, addDays, subDays } from 'date-fns'
 
 const router = useRouter()
 const shiftStore = useShiftStore()
+const notificationStore = useNotificationStore()
+
+const selectedDate = ref(new Date())
+const formattedDate = computed(() => format(selectedDate.value, 'MMM dd, yyyy'))
+
+const goToday = () => { selectedDate.value = new Date() }
+const goPrev = () => { selectedDate.value = subDays(selectedDate.value, 7) }
+const goNext = () => { selectedDate.value = addDays(selectedDate.value, 7) }
 
 onMounted(() => {
   shiftStore.fetchManagerShifts().catch(() => {})
+  notificationStore.fetchNotifications().catch(() => {})
 })
 
 // --- Assign modal state ---
@@ -41,56 +53,31 @@ const handleAssign = async (shift) => {
 }
 
 // --- Data bound to store with fallback ---
-const currentUser = ref({
-  name: 'Alex Thompson',
-  role: 'REGIONAL ADMIN',
-  avatar: 'https://i.pravatar.cc/150?u=alex_thompson'
-})
 
-const stats = ref([
-  { id: 1, label: 'Total Active Staff', value: '1,248', badge: '+12%', badgeType: 'success', icon: 'people', iconColor: 'blue' },
-  { id: 2, label: 'Open Shifts', value: '18', badge: 'Urgent', badgeType: 'warning', icon: 'clipboard', iconColor: 'orange' },
-  { id: 3, label: 'New Applicants', value: '34', badge: 'New', badgeType: 'info', icon: 'user-search', iconColor: 'purple' },
-  { id: 4, label: 'Fill Rate', value: '94%', badge: '98.2%', badgeType: 'success', icon: 'lightning', iconColor: 'green' }
+const stats = computed(() => [
+  { id: 1, label: 'Total Active Staff', value: shiftStore.shifts.filter(s => s.status === 'ACTIVE').length || '—', badge: 'Active', badgeType: 'success', icon: 'people', iconColor: 'blue' },
+  { id: 2, label: 'Open Shifts', value: shiftStore.openShifts.length, badge: 'Urgent', badgeType: 'warning', icon: 'clipboard', iconColor: 'orange' },
+  { id: 3, label: 'New Applicants', value: shiftStore.pendingApplicants.length, badge: 'New', badgeType: 'info', icon: 'user-search', iconColor: 'purple' },
+  { id: 4, label: 'Total Shifts', value: shiftStore.shifts.length, badge: 'All', badgeType: 'success', icon: 'lightning', iconColor: 'green' }
 ])
 
 const shiftsNeedingStaff = computed(() => {
-  if (shiftStore.openShifts.length > 0) {
-    return shiftStore.openShifts.map(s => ({
-      id: s.id,
-      position: s.role || s.roleName,
-      subtitle: s.date,
-      location: s.business,
-      time: `${s.startTime || '?'} - ${s.endTime || '?'}`,
-      status: s.status,
-      statusClass: s.status.toLowerCase()
-    }))
-  }
-  return [
-    { id: 1, position: 'Lead Nurse (ICU)', subtitle: 'Night Shift', location: 'St. Mary\'s General', time: 'Tonight, 22:00', status: 'CRITICAL', statusClass: 'critical' },
-    { id: 2, position: 'Security Supervisor', subtitle: 'Event Coverage', location: 'Downtown Plaza', time: 'Tomorrow, 08:00', status: 'PENDING', statusClass: 'pending' },
-    { id: 3, position: 'Site Manager', subtitle: 'Project Alpha', location: 'Silicon Harbor', time: 'Aug 26, 09:00', status: 'OPEN', statusClass: 'open' }
-  ]
+  return shiftStore.openShifts.map(s => ({
+    id: s.id,
+    position: s.role || s.roleName,
+    subtitle: s.date,
+    location: s.business,
+    time: `${s.startTime || '?'} - ${s.endTime || '?'}`,
+    status: s.status,
+    statusClass: s.status.toLowerCase()
+  }))
 })
 
-const newApplicants = ref([
-  { id: 1, name: 'Sarah Jenkins', role: 'Registered Nurse', exp: '5y Exp', avatar: 'https://i.pravatar.cc/150?u=sarah_j' },
-  { id: 2, name: 'Michael Chen', role: 'Security Expert', exp: '8y Exp', avatar: 'https://i.pravatar.cc/150?u=michael_c' },
-  { id: 3, name: 'Elena Rodriguez', role: 'Operations Lead', exp: '12y Exp', avatar: 'https://i.pravatar.cc/150?u=elena_r' },
-  { id: 4, name: 'David Park', role: 'Logistics Manager', exp: '4y Exp', avatar: 'https://i.pravatar.cc/150?u=david_p' }
-])
+// Wired to store — flattened list of all applicants across open shifts
+const newApplicants = computed(() => shiftStore.pendingApplicants)
 
-const alerts = ref([
-  { id: 1, type: 'danger', icon: 'ambulance', title: 'Staff Absence', text: 'James Wilson (Site A) called out. Replacement needed within 2 hours.' },
-  { id: 2, type: 'warning', icon: 'clock', title: 'Compliance Warning', text: '14 staff certifications expiring in 30 days. Renewal required.' },
-  { id: 3, type: 'info', icon: 'megaphone', title: 'System Update', text: 'Mobile app version 4.2 scheduled for deployment tonight 00:00.' }
-])
-
-const activities = ref([
-  { id: 1, type: 'success', title: 'Shift Filled', text: 'Marcus Wright accepted ICU Morning Shift', time: '10 minutes ago' },
-  { id: 2, type: 'info', title: 'New Application', text: 'Elena Rodriguez applied for Ops Lead', time: '45 minutes ago' },
-  { id: 3, type: 'warning', title: 'Schedule Updated', text: 'Shift #1092 changed from 8hr to 12hr', time: '2 hours ago' }
-])
+// Alerts and recent activity are not yet stored server-side.
+// These sections will show empty state until a notifications API is wired up.
 </script>
 
 <template>
@@ -102,11 +89,17 @@ const activities = ref([
             <p>Real-time oversight for Western Region Operations</p>
           </div>
           <div class="title-actions">
-            <button class="btn btn-outline">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-              Aug 24, 2024
+            <button class="btn btn-outline" @click="goPrev">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
             </button>
-            <button class="btn btn-primary">
+            <button class="btn btn-outline" @click="goToday">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              {{ formattedDate }}
+            </button>
+            <button class="btn btn-outline" @click="goNext">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+            <button class="btn btn-primary" @click="router.push('/manager/shift')">
               + Create Shift
             </button>
           </div>
@@ -140,7 +133,7 @@ const activities = ref([
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                   <h2>Shifts Needing Staff</h2>
                 </div>
-                <a href="#" class="view-all" @click.prevent="router.push('/manager/schedule')">View all</a>
+                <router-link to="/manager/schedule" class="view-all">View all</router-link>
               </div>
 
               <table class="data-table">
@@ -154,7 +147,13 @@ const activities = ref([
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="shift in shiftsNeedingStaff" :key="shift.id">
+                  <tr v-if="shiftStore.loading">
+                    <td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading shifts…</td>
+                  </tr>
+                  <tr v-else-if="shiftsNeedingStaff.length === 0">
+                    <td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">No open shifts found. <router-link to="/manager/shift">Create one →</router-link></td>
+                  </tr>
+                  <tr v-for="shift in shiftsNeedingStaff" :key="shift.id" v-else>
                     <td>
                       <strong>{{ shift.position }}</strong>
                       <span class="sub-text">{{ shift.subtitle }}</span>
@@ -181,19 +180,20 @@ const activities = ref([
             <button class="view-all" style="background:none;border:none;cursor:pointer;" @click="router.push('/manager/shift')">+ Create Shift</button>
           </div>
 
-              <div class="applicants-grid">
+              <div class="applicants-grid" v-if="newApplicants.length > 0">
                 <div v-for="app in newApplicants" :key="app.id" class="applicant-card">
-                  <img :src="app.avatar" :alt="app.name" class="app-avatar" />
+                  <div class="app-avatar-placeholder">{{ app.name.charAt(0) }}</div>
                   <div class="app-info">
                     <strong>{{ app.name }}</strong>
-                    <span>{{ app.role }} • {{ app.exp }}</span>
+                    <span>{{ app.role }}</span>
                   </div>
                   <div class="app-actions">
-                    <button class="btn-icon btn-reject"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
-                    <button class="btn-icon btn-accept"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></button>
+                    <button class="btn-icon btn-reject" @click="shiftStore.rejectApplicant(app.shiftId, app.id)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                    <button class="btn-icon btn-accept" @click="shiftStore.approveApplicant(app.shiftId, app.id)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></button>
                   </div>
                 </div>
               </div>
+              <p v-else style="color:var(--text-muted);font-size:0.9rem;margin:0;">No pending applicants right now.</p>
             </div>
 
           </div>
@@ -207,39 +207,25 @@ const activities = ref([
               </div>
               
               <div class="alerts-list">
-                <div v-for="alert in alerts" :key="alert.id" class="alert-card" :class="`alert-${alert.type}`">
-                  <div class="alert-icon">
-                    <svg v-if="alert.icon === 'ambulance'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="2"></rect><circle cx="8" cy="18" r="2"></circle><circle cx="16" cy="18" r="2"></circle><line x1="12" y1="10" x2="12" y2="14"></line><line x1="10" y1="12" x2="14" y2="12"></line></svg>
-                    <svg v-if="alert.icon === 'clock'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    <svg v-if="alert.icon === 'megaphone'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-                  </div>
-                  <div class="alert-content">
-                    <strong>{{ alert.title }}</strong>
-                    <p>{{ alert.text }}</p>
-                  </div>
-                </div>
+                <p style="color:var(--text-muted);font-size:0.9rem;margin:0;">No urgent alerts at this time.</p>
               </div>
             </div>
 
             <div class="activity-section mt-4">
               <h2>Recent Activity</h2>
-              
-              <div class="timeline">
-                <div v-for="item in activities" :key="item.id" class="timeline-item">
-                  <div class="timeline-icon" :class="`bg-${item.type}`">
-                    <svg v-if="item.type === 'success'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    <svg v-if="item.type === 'info'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                    <svg v-if="item.type === 'warning'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+
+              <div v-if="notificationStore.notifications.length > 0" class="timeline">
+                <div v-for="n in notificationStore.notifications.slice(0, 5)" :key="n.id" class="timeline-item">
+                  <div class="timeline-icon bg-info">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                   </div>
                   <div class="timeline-content">
-                    <strong>{{ item.title }}</strong>
-                    <p>{{ item.text }}</p>
-                    <span class="time">{{ item.time }}</span>
+                    <p>{{ n.message }}</p>
+                    <span class="time">{{ new Date(n.createdAt).toLocaleString() }}</span>
                   </div>
                 </div>
               </div>
-
-              <button class="btn btn-outline btn-block">Load More Activity</button>
+              <p v-else style="color:var(--text-muted);font-size:0.9rem;margin:0 0 1rem 0;">No recent activity to display.</p>
             </div>
 
           </div>
@@ -247,22 +233,13 @@ const activities = ref([
 
   </ManagerLayout>
 
-  <!-- Assign Result Modal -->
-  <Teleport to="body">
-    <div v-if="showAssignModal" class="modal-overlay" @click.self="showAssignModal = false">
-      <div class="modal-box">
-        <div :class="assignSuccess ? 'modal-success' : 'modal-error'">
-          <div class="modal-icon" :class="assignSuccess ? 'success-icon' : 'error-icon'">
-            <svg v-if="assignSuccess" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-          </div>
-          <h3>{{ assignSuccess ? 'Assigned!' : 'Notice' }}</h3>
-          <p>{{ assignMessage }}</p>
-        </div>
-        <button class="btn btn-primary modal-close-btn" @click="showAssignModal = false">Got it</button>
-      </div>
-    </div>
-  </Teleport>
+  <ConfirmModal
+    :is-open="showAssignModal"
+    :title="assignSuccess ? 'Assigned!' : 'Notice'"
+    :message="assignMessage"
+    :type="assignSuccess ? 'success' : 'danger'"
+    @close="showAssignModal = false"
+  />
 
 </template>
 

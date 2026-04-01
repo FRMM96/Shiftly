@@ -1,37 +1,97 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
+import StatusBadge from '../../components/shared/StatusBadge.vue'
+import WorkerShiftCard from '../../components/shared/WorkerShiftCard.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
 import { useRouter } from 'vue-router'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useShiftStore } from '../../stores/shiftStore'
 import { useUserStore } from '../../stores/userStore'
-import { useNotificationStore } from '../../stores/notificationStore'
+import { useWorkerStore } from '../../stores/workerStore'
+import api from '../../services/api'
 
 const notificationStore = useNotificationStore()
 const router = useRouter()
 const scheduleStore = useScheduleStore()
 const shiftStore = useShiftStore()
 const userStore = useUserStore()
+const workerStore = useWorkerStore()
+
+const clockingIn = ref(false)
+const showModal = ref(false)
+const modalSuccess = ref(false)
+const modalMessage = ref('')
 
 onMounted(async () => {
   await Promise.allSettled([
     scheduleStore.fetchMySchedule(),
-    shiftStore.fetchMyApplications(),
-    notificationStore.fetchMyNotifications()
+    shiftStore.fetchMyShifts()
   ])
 })
 
-const user = computed(() => userStore.user || {})
+const user = computed(() => ({
+  name: userStore.user?.username || 'Worker',
+  scheduledShiftsCount: scheduleStore.mySchedule.length
+}))
 
-const upcomingShifts = computed(() => {
-  return scheduleStore.mySchedule.slice(0, 5)
+const stats = computed(() => ({
+  hours: `${workerStore.workerStats.hours}h`,
+  earnings: '—',
+  rating: workerStore.workerStats.rating
+}))
+
+const nextShift = computed(() => {
+  if (scheduleStore.mySchedule.length === 0) return null
+  return scheduleStore.mySchedule[0]
 })
 
-const nextShift = computed(() => upcomingShifts.value[0] || null)
+const handleClockIn = async () => {
+  if (!nextShift.value) return
+  clockingIn.value = true
+  try {
+    await api.post('/clock', { shiftId: nextShift.value.id, type: 'CLOCK_IN' })
+    modalSuccess.value = true
+    modalMessage.value = 'You have clocked in successfully!'
+  } catch (e) {
+    modalSuccess.value = false
+    modalMessage.value = e?.response?.data?.message || 'Failed to clock in.'
+  } finally {
+    clockingIn.value = false
+    showModal.value = true
+  }
+}
 
-const applicationItems = computed(() => shiftStore.applications.slice(0, 5))
-const latestNotification = computed(() => notificationStore.notifications[0] || null)
+const upcomingShifts = computed(() => {
+  return scheduleStore.mySchedule.map(s => {
+    const d = new Date(s.date)
+    return {
+      id: s.id,
+      month: d.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
+      day: String(d.getDate()).padStart(2, '0'),
+      title: s.role || s.roleName,
+      time: s.time || 'TBD',
+      location: s.business || 'Location TBD',
+      pay: s.pay || 'TBD',
+      status: (s.status || 'CONFIRMED').toUpperCase()
+    }
+  })
+})
 
+const pendingApplications = computed(() => {
+  return shiftStore.myApplications.map(app => ({
+    id: app.id,
+    title: app.role || app.roleName,
+    company: app.business,
+    status: 'UNDER REVIEW',
+    statusType: 'info',
+    appliedDays: 1,
+    pay: app.pay || 'TBD',
+    actionText: 'View Details',
+    actionType: 'outline'
+  }))
+})
 </script>
 
 <template>
@@ -57,15 +117,24 @@ const latestNotification = computed(() => notificationStore.notifications[0] || 
           <p>{{ nextShift.date }} • {{ nextShift.time }}</p>
           <p>{{ nextShift.business }}</p>
         </div>
-        <button class="btn btn-secondary" @click="router.push('/worker/calendar')">View Calendar</button>
-      </div>
 
-      <div class="dashboard-grid">
-        <section class="card">
-          <div class="section-header">
-            <h2>Upcoming Shifts</h2>
-            <router-link to="/worker/calendar">View Calendar</router-link>
+        <div class="next-shift-card">
+          <div class="next-shift-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
           </div>
+          <div class="next-shift-info">
+            <span class="alert-label">NEXT SHIFT</span>
+            <h3 v-if="nextShift">{{ nextShift.roleName || nextShift.role || 'Shift' }} — {{ nextShift.date }}</h3>
+            <h3 v-else>No upcoming shifts</h3>
+            <p v-if="nextShift">{{ nextShift.startTime }} – {{ nextShift.endTime }}. Remember to clock in via the app.</p>
+            <p v-else>Check the marketplace for available shifts.</p>
+          </div>
+          <div class="next-shift-actions">
+            <button class="btn btn-primary" :disabled="clockingIn" @click="handleClockIn">
+              {{ clockingIn ? 'Clocking In...' : 'Clock In' }}
+            </button>
+          </div>
+        </div>
 
           <div v-if="scheduleStore.loading">Loading shifts…</div>
           <div v-else-if="scheduleStore.error">{{ scheduleStore.error }}</div>
@@ -88,24 +157,55 @@ const latestNotification = computed(() => notificationStore.notifications[0] || 
             <router-link to="/worker/applications">View All</router-link>
           </div>
 
-          <div v-if="applicationItems.length === 0">No applications yet.</div>
+        <div class="dashboard-grid">
+          
+          <section class="shifts-section">
+            <div class="section-header">
+              <h2>Upcoming Shifts (7 Days)</h2>
+              <router-link to="/worker/calendar" class="link">View Calendar</router-link>
+            </div>
+            
+            <div class="shifts-list">
+              <p v-if="!scheduleStore.loading && upcomingShifts.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No upcoming shifts found.</p>
+              <WorkerShiftCard v-for="shift in upcomingShifts" :key="shift.id" :shift="shift" />
+            </div>
+          </section>
 
-          <div v-else class="list">
-            <div v-for="app in applicationItems" :key="app.id" class="list-item">
-              <div>
-                <strong>{{ app.shift?.roleName || app.shift?.role || 'Shift' }}</strong>
-                <div>{{ app.shift?.business }}</div>
-                <div>Status: {{ app.status }}</div>
+          <section class="applications-section">
+            <div class="section-header">
+              <h2>Pending Applications</h2>
+            </div>
+            
+            <div class="applications-list">
+              <p v-if="!shiftStore.loading && pendingApplications.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No pending applications.</p>
+              <div v-for="app in pendingApplications" :key="app.id" class="app-card">
+                <h4>{{ app.title }}</h4>
+                <p class="company">{{ app.company }}</p>
+                <div class="app-meta">
+                  <div class="meta-left">
+                    <StatusBadge :text="app.status" :type="app.statusType" />
+                  </div>
+                  <span class="applied-time">Applied {{ app.appliedDays }} days ago</span>
+                </div>
+                <div class="app-footer">
+                  <span class="pay-rate">{{ app.pay }}</span>
+                  <button class="btn btn-sm" :class="app.actionType === 'solid' ? 'btn-primary' : 'btn-outline'">
+                    {{ app.actionText }}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          <button class="btn btn-primary full" @click="router.push('/worker/marketplace')">
-            Browse open shifts
-          </button>
-        </section>
-      </div>
-    </div>
+        </div>
+
+        <ConfirmModal
+          v-if="showModal"
+          :title="modalSuccess ? 'Success' : 'Error'"
+          :message="modalMessage"
+          @close="showModal = false"
+          @confirm="showModal = false"
+        />
   </WorkerLayout>
 </template>
 
@@ -200,7 +300,10 @@ const latestNotification = computed(() => notificationStore.notifications[0] || 
   border-radius: 12px;
   padding: 1rem;
 }
-.notif-banner p {
-  margin: 0.35rem 0 0;
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 }
 </style>

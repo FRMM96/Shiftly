@@ -97,9 +97,16 @@ exports.register = async (req, res) => {
         }
 
         const code = await createUniqueInviteCode()
-        company = await prisma.company.create({
-          data: { name: trimmedCompanyName, inviteCode: code }
-        })
+        try {
+          company = await prisma.company.create({
+            data: { name: String(companyName).trim(), inviteCode: code }
+          })
+        } catch (dbErr) {
+          if (dbErr.code === 'P2002') {
+            return res.status(409).json({ message: 'Company name already in use' })
+          }
+          throw dbErr
+        }
       } else {
         if (!trimmedInviteCode) {
           return res.status(400).json({ message: 'Managers must provide companyName OR inviteCode' })
@@ -182,11 +189,12 @@ exports.login = async (req, res) => {
 }
 
 exports.me = async (req, res) => {
-  try {
-    const user = await buildSafeUser(req.user.id)
-    return res.json({ user })
-  } catch (err) {
-    console.error(err)
-    return res.status(500).json({ message: 'Server error' })
+  if (req.user.companyId) {
+    const company = await prisma.company.findUnique({
+      where: { id: req.user.companyId },
+      select: { id: true, name: true, inviteCode: true }
+    })
+    return res.json({ user: { ...req.user, company } })
   }
+  return res.json({ user: req.user })
 }

@@ -1,6 +1,13 @@
 const prisma = require("../db/prisma");
+const { createNotification, notifyManagers } = require("../helpers/notification");
 
 exports.listOpenShifts = async (req, res) => {
+  const shifts = await prisma.shift.findMany({
+    where: { status: "OPEN", companyId: req.user.companyId },
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    include: { manager: { select: { id: true, email: true, username: true } } },
+  });
+  res.json({ shifts });
   try {
     const shifts = await prisma.shift.findMany({
       where: {
@@ -48,6 +55,13 @@ exports.applyToShift = async (req, res) => {
       update: { status: "PENDING" },
       create: { shiftId: id, userId: req.user.id },
     });
+
+    await notifyManagers(
+      shift.companyId,
+      'APPLICATION',
+      `${req.user.username} applied for ${shift.roleName}`,
+      `/manager/applicants/${shift.id}`
+    );
 
     return res.status(201).json({ application });
   } catch (err) {
@@ -134,6 +148,26 @@ exports.assignApplicant = async (req, res) => {
       return { accepted, shift: updatedShift };
     });
 
+    // Notify accepted worker
+    await createNotification(
+      application.userId,
+      shift.companyId,
+      'SHIFT_ASSIGNED',
+      `You were accepted for ${shift.roleName}`,
+      '/worker/calendar'
+    );
+
+    // Notify rejected workers
+    const rejected = await prisma.shiftApplication.findMany({
+      where: { shiftId: id, status: 'REJECTED' },
+      select: { userId: true }
+    });
+    await Promise.all(
+      rejected.map(r =>
+        createNotification(r.userId, shift.companyId, 'APPLICATION_REJECTED', `Your application for ${shift.roleName} was not selected`, '/worker/marketplace')
+      )
+    );
+
     return res.json(result);
   } catch (err) {
     console.error(err);
@@ -141,21 +175,38 @@ exports.assignApplicant = async (req, res) => {
   }
 };
 
-exports.listMyApplications = async (req, res) => {
+exports.rejectApplicant = async (req, res) => {
   try {
-    const applications = await prisma.shiftApplication.findMany({
-      where: { userId: req.user.id },
-      orderBy: [{ appliedAt: "desc" }],
-      include: {
-        shift: {
-          include: {
-            manager: { select: { id: true, username: true, email: true } },
-          },
-        },
-      },
+    const { id, applicationId } = req.params;
+
+    const shift = await prisma.shift.findUnique({ where: { id } });
+    if (!shift) return res.status(404).json({ message: "Shift not found" });
+    if (shift.managerId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
+
+    const application = await prisma.shiftApplication.findUnique({
+      where: { id: applicationId },
+    });
+    if (!application || application.shiftId !== id) {
+      return res.status(404).json({ message: "Application not found for this shift" });
+    }
+    if (application.status !== "PENDING") {
+      return res.status(400).json({ message: "Only pending applications can be rejected" });
+    }
+
+    const rejectedApp = await prisma.shiftApplication.update({
+      where: { id: applicationId },
+      data: { status: "REJECTED" },
     });
 
-    return res.json({ applications });
+    await createNotification(
+      application.userId,
+      shift.companyId,
+      'APPLICATION_REJECTED',
+      `Your application for ${shift.roleName} was not selected`,
+      '/worker/marketplace'
+    );
+
+    return res.json({ application: rejectedApp });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Server error" });

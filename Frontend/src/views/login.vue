@@ -25,7 +25,7 @@
                   type="text" 
                   id="username" 
                   v-model="emailOrUsername" 
-                  placeholder="name@company.com" 
+                  placeholder="Email Address or Username" 
                   required 
                 />
               </div>
@@ -182,11 +182,15 @@ export default {
       this.error = ''
       try {
         await userStore.login({ emailOrUsername: this.emailOrUsername, password: this.password })
-        // Route by role
-        if (userStore.user.role === 'BOSS') this.$router.push('/manager')
+        // Route by role using new mappings
+        if (userStore.isManager || userStore.isBoss) this.$router.push('/manager')
         else this.$router.push('/worker')
       } catch (e) {
-        this.error = e.message || 'Login failed'
+        if (e.response && e.response.status === 401) {
+          this.error = 'Invalid credentials'
+        } else {
+          this.error = e.response?.data?.message || e.message || 'Login failed'
+        }
       } finally {
         this.loading = false
       }
