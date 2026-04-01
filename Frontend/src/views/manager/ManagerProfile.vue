@@ -1,3 +1,6 @@
+
+
+
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -93,13 +96,6 @@ const handleLogout = () => {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
           </button>
         </div>
-        <h1 class="user-name">{{ user.name }}</h1>
-        <p class="user-role">{{ user.role }}</p>
-        <p class="user-location">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-          {{ user.location }}
-        </p>
-      </div>
 
       <div class="settings-grid">
         
@@ -140,50 +136,23 @@ const handleLogout = () => {
           </div>
         </div>
 
-        <div class="card settings-card">
-          <div class="card-title">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0052CC" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-            <h2>Notifications</h2>
+        <section class="invite-box">
+          <div>
+            <h2>Company Invite Code</h2>
+            <p>Share this code with employees or additional managers so they join the correct company.</p>
           </div>
-          
-          <div class="toggles-list">
-            
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <strong>Email Alerts</strong>
-                <p>Daily summary of operations</p>
-              </div>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="settings.emailAlerts" />
-                <span class="slider"></span>
-              </label>
-            </div>
-            
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <strong>System Status</strong>
-                <p>Uptime & maintenance alerts</p>
-              </div>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="settings.systemStatus" />
-                <span class="slider"></span>
-              </label>
-            </div>
-
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <strong>Direct Messages</strong>
-                <p>Team mentions and chats</p>
-              </div>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="settings.directMessages" />
-                <span class="slider"></span>
-              </label>
-            </div>
-
+          <div class="invite-row">
+            <div class="invite-code">{{ company.inviteCode || 'No invite code found' }}</div>
+            <BaseButton variant="primary" size="sm" @click="copyInviteCode" :disabled="!company.inviteCode">
+              {{ copied ? 'Copied!' : 'Copy code' }}
+            </BaseButton>
           </div>
+        </section>
+
+        <div class="actions">
+          <BaseButton variant="secondary" outline @click="router.push('/manager/shift')">Create Shift</BaseButton>
+          <BaseButton variant="ghost" @click="logout">Log out</BaseButton>
         </div>
-
       </div>
 
       <div class="actions-grid">

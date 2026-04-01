@@ -134,10 +134,11 @@ const goToMarketplace = () => router.push('/worker/marketplace')
             </div>
           </div>
 
-          <div class="section-container">
-            <div class="section-header muted-header">
-              <h3>RECENTLY APPROVED</h3>
-            </div>
+      <div class="stats">
+        <div>Pending ({{ pendingApps.length }})</div>
+        <div>Approved ({{ approvedApps.length }})</div>
+        <div>Denied ({{ deniedApps.length }})</div>
+      </div>
 
             <div class="card-list">
               <div v-for="app in approvedApps" :key="app.id" class="app-card dashed-border">
@@ -179,13 +180,21 @@ const goToMarketplace = () => router.push('/worker/marketplace')
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div class="action-row">
-            <button class="btn-load-more">Load More Applications</button>
+      <section class="card">
+        <h2>Denied</h2>
+        <div v-if="deniedApps.length === 0">No denied applications.</div>
+        <div v-else class="list">
+          <div v-for="app in deniedApps" :key="app.id" class="item">
+            <strong>{{ app.shift?.roleName }}</strong>
+            <div>{{ app.shift?.business }}</div>
+            <div>{{ app.shift?.date }} • {{ app.shift?.startTime }} - {{ app.shift?.endTime }}</div>
           </div>
-
-        </main>
-      </div>
+        </div>
+      </section>
+    </div>
   </WorkerLayout>
 </template>
 
@@ -485,103 +494,12 @@ const goToMarketplace = () => router.push('/worker/marketplace')
   justify-content: space-between;
   align-items: center;
   padding: 1.25rem;
+}
+.card h2 { margin: 0 0 1rem; }
+.list { display: flex; flex-direction: column; gap: 0.75rem; }
+.item {
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
-  background-color: var(--bg-inner);
+  padding: 1rem;
 }
-
-.solid-border {
-  border: 1px solid var(--border);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-}
-
-.dashed-border {
-  border: 1px dashed #CBD5E1;
-}
-
-.card-left {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-}
-
-.icon-wrapper {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.bg-warning-light { background-color: var(--warn-light-bg); color: var(--warn-light-text); }
-.bg-warning-dark { background-color: var(--warn-dark-bg); color: var(--warn-dark-text); }
-.bg-success { background-color: var(--success-bg); color: var(--success-text); }
-.bg-danger { background-color: var(--danger-bg); color: var(--danger-text); }
-
-.app-details h4 {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--text-dark);
-  margin: 0 0 0.25rem 0;
-}
-
-.app-details p {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-.dot {
-  margin: 0 0.25rem;
-}
-
-.card-right {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.status-badge {
-  padding: 0.35rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-}
-
-.badge-warning-light { background-color: var(--warn-light-bg); color: var(--warn-light-text); }
-.badge-warning-dark { background-color: var(--warn-dark-bg); color: var(--warn-dark-text); }
-.badge-success { background-color: var(--success-bg); color: var(--success-text); }
-.badge-danger { background-color: var(--danger-bg); color: var(--danger-text); }
-
-.chevron-icon {
-  color: #9CA3AF;
-  cursor: pointer;
-}
-
-/* Button */
-.action-row {
-  display: flex;
-  justify-content: center;
-  margin-top: 1rem;
-}
-
-.btn-load-more {
-  background-color: var(--bg-outer);
-  color: var(--text-dark);
-  font-weight: 600;
-  font-size: 0.9rem;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.btn-load-more:hover {
-  background-color: #E2E8F0;
-}
-
-/* --- Responsive Adjustments --- */
-
 </style>

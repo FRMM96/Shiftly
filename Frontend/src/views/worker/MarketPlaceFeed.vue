@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
 import StatusBadge from '../../components/shared/StatusBadge.vue'
 import ConfirmModal from '../../components/shared/ConfirmModal.vue'
@@ -9,7 +9,6 @@ import { useRouter } from 'vue-router'
 import { useShiftStore } from '../../stores/shiftStore'
 import { storeToRefs } from 'pinia'
 
-const router = useRouter()
 const shiftStore = useShiftStore()
 const { loading } = storeToRefs(shiftStore)
 
@@ -95,21 +94,35 @@ const handleApply = async (shift) => {
   if (!confirm(`Apply for ${shift.title} at ${shift.company}?`)) return
   applying.value = true
   try {
-    await shiftStore.applyToShift(shift.id)
-    modalSuccess.value = true
-    modalMessage.value = `Your application for "${shift.title}" has been submitted!`
+    await shiftStore.fetchMarketplace()
   } catch (e) {
-    modalSuccess.value = false
-    modalMessage.value = e?.message || 'Failed to apply. Please try again.'
+    error.value = e.message || 'Failed to load marketplace shifts'
   } finally {
-    applying.value = false
-    showModal.value = true
+    loading.value = false
   }
 }
 
-const closeModal = () => {
-  showModal.value = false
+async function handleApply(shiftId) {
+  try {
+    await shiftStore.applyToShift(shiftId)
+    alert('Application sent successfully.')
+  } catch (e) {
+    alert(e.message || 'Failed to apply')
+  }
 }
+
+onMounted(loadMarketplace)
+
+const filteredShifts = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return shiftStore.marketplaceShifts
+
+  return shiftStore.marketplaceShifts.filter(shift =>
+    (shift.roleName || shift.role || '').toLowerCase().includes(q) ||
+    (shift.business || '').toLowerCase().includes(q) ||
+    (shift.location || '').toLowerCase().includes(q)
+  )
+})
 </script>
 
 <template>
@@ -217,25 +230,14 @@ const closeModal = () => {
             </div>
           </div>
 
-          <div class="card-map-wrapper">
-            <img :src="shift.mapImage" alt="Map Location" class="map-img" />
-            <div class="location-pin">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-              {{ shift.location }}
+            <div class="meta">
+              <span>{{ shift.date }}</span>
+              <span>{{ shift.startTime }} - {{ shift.endTime }}</span>
+              <span v-if="shift.location">{{ shift.location }}</span>
             </div>
+
+            <p v-if="shift.notes" class="notes">{{ shift.notes }}</p>
           </div>
-
-        </div>
-      </div>
-
-      <div class="load-more-container">
-        <button class="btn btn-outline load-more-btn">
-          Load more shifts
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-      </div>
-    </div>
-  </WorkerLayout>
 
   <ConfirmModal
     :is-open="showModal"
@@ -378,58 +380,52 @@ const closeModal = () => {
   color: var(--primary);
   font-weight: 600;
 }
-.more-filters svg { color: var(--primary); }
-.more-filters:hover { background-color: #DBEAFE; }
 
-/* --- List Header --- */
-.list-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
+.header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  font-weight: 800;
 }
 
-.list-header h2 {
-  font-size: 1.25rem;
-  font-weight: 700;
+.header p {
   margin: 0;
+  color: #64748b;
 }
 
-.shift-count {
-  font-size: 0.9rem;
-  color: var(--text-muted);
+.search-bar input {
+  width: 100%;
+  max-width: 520px;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.95rem;
 }
 
-/* --- Shift Cards --- */
 .shift-list {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .shift-card {
   display: flex;
   justify-content: space-between;
-  background-color: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.25rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-  gap: 2rem;
+  gap: 1rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
 }
 
-.card-content {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.shift-main {
+  flex: 1;
 }
 
-.card-top-meta {
+.shift-top {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .pay-rate {
@@ -438,136 +434,75 @@ const closeModal = () => {
   color: var(--primary);
 }
 
-.job-title {
-  font-size: 1.35rem;
+.business {
+  margin: 0.35rem 0 0.5rem;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.notes {
+  margin-top: 0.65rem;
+  color: #475569;
+}
+
+.shift-actions {
+  display: flex;
+  align-items: center;
+}
+
+.apply-btn {
+  border: none;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #fff;
+  padding: 0.8rem 1rem;
   font-weight: 700;
-  margin: 0 0 0.5rem 0;
-  color: var(--text-main);
+  cursor: pointer;
 }
 
-.job-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-}
-
-.company, .time {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.job-meta svg { color: #9CA3AF; }
-.dot-separator { font-size: 1.2rem; line-height: 1; }
-
-.card-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.btn {
+.badge {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1.5rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
-.btn-primary { background-color: var(--primary); color: #ffffff; }
-.btn-primary:hover { background-color: var(--primary-hover); }
-
-.btn-icon {
-  padding: 0.6rem;
-  background-color: #F1F5F9;
-  color: var(--text-muted);
-}
-.btn-icon:hover { background-color: #E2E8F0; color: var(--text-main); }
-
-/* Card Map (Right Side) */
-.card-map-wrapper {
-  position: relative;
-  width: 320px;
-  height: 160px;
-  flex-shrink: 0;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid var(--border);
+.badge-global {
+  background: #ede9fe;
+  color: #6d28d9;
 }
 
-.map-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.85; /* Softens the image slightly to match the map aesthetic */
+.badge-company {
+  background: #dcfce7;
+  color: #166534;
 }
 
-.location-pin {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  background-color: #ffffff;
-  padding: 0.4rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+.error {
+  color: #b91c1c;
 }
 
-/* --- Load More --- */
-.load-more-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 2rem;
+.empty {
+  color: #64748b;
 }
 
-.btn-outline {
-  background-color: transparent;
-  border-color: var(--border);
-  color: var(--text-main);
-  border-radius: 50px;
-  padding: 0.6rem 1.5rem;
-}
-.btn-outline:hover {
-  background-color: #F8FAFC;
-  border-color: #D1D5DB;
-}
+@media (max-width: 700px) {
+  .shift-card {
+    flex-direction: column;
+  }
 
-/* Responsive adjustments */
-@media (max-width: 968px) {
-  .shift-card { flex-direction: column; }
-  .card-map-wrapper { width: 100%; height: 200px; }
-}
-
-/* --- Modal --- */
-.modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.45);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000;
-}
-.modal-box {
-  background: #fff; border-radius: 16px; padding: 2rem;
-  max-width: 380px; width: 90%; text-align: center;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-}
-.modal-icon {
-  width: 64px; height: 64px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 1.25rem;
+  .shift-actions {
+    justify-content: flex-start;
+  }
 }
 .success-icon { background: #DCFCE3; color: #16A34A; }
 .error-icon { background: #FEE2E2; color: #DC2626; }

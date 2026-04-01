@@ -1,6 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
 import ConfirmModal from '../../components/shared/ConfirmModal.vue'
 import TabBar from '../../components/shared/TabBar.vue'
@@ -8,8 +7,10 @@ import UserAvatar from '../../components/shared/UserAvatar.vue'
 import LoadMoreButton from '../../components/shared/LoadMoreButton.vue'
 import { useShiftStore } from '../../stores/shiftStore'
 
-const router = useRouter()
 const shiftStore = useShiftStore()
+const loading = ref(false)
+const error = ref('')
+const rows = ref([])
 
 // --- State ---
 const actionLoading = ref({}) // { [applicantId]: 'approve'|'reject' }
@@ -118,8 +119,14 @@ const handleDecline = async (shift, applicant) => {
   }
 }
 
-const closeModal = () => {
-  showModal.value = false
+async function assign(shiftId, applicationId) {
+  try {
+    await shiftStore.assignApplicant(shiftId, applicationId)
+    await load()
+    alert('Applicant assigned')
+  } catch (e) {
+    alert(e.message || 'Failed to assign applicant')
+  }
 }
 
 const pendingCount = computed(() => {
@@ -137,11 +144,7 @@ const handleViewProfile = (applicantId) => {
 
 <template>
   <ManagerLayout>
-        
-        <div class="page-header">
-          <h1>Applicant Review</h1>
-          <p>Review and approve healthcare professionals for open shifts.</p>
-        </div>
+    <h1>Applicant Review</h1>
 
         <TabBar
           :tabs="[
@@ -232,7 +235,7 @@ const handleViewProfile = (applicantId) => {
 
         <LoadMoreButton v-if="activeTab === 'pending'" text="Load More Shifts" />
 
-  </ManagerLayout>
+        <div v-if="row.applicants.length === 0">No applicants yet.</div>
 
   <ConfirmModal
     :is-open="showModal"

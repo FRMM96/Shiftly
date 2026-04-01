@@ -41,7 +41,6 @@ export const useShiftStore = defineStore('shifts', () => {
     return shifts.value.filter(shift => Array.isArray(shift.applications) && shift.applications.length > 0)
   })
 
-  // --- Manager actions ---
   async function fetchManagerShifts(params = {}) {
     loading.value = true
     error.value = null
@@ -91,6 +90,10 @@ export const useShiftStore = defineStore('shifts', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  async function addShift(shift) {
+    return await createShift(shift)
   }
 
   async function updateShift(updatedShift) {
@@ -201,7 +204,6 @@ export const useShiftStore = defineStore('shifts', () => {
     }
   }
 
-  // --- Manager: applicants + assign ---
   async function fetchApplicants(shiftId) {
     loading.value = true
     try {
@@ -267,6 +269,15 @@ export const useShiftStore = defineStore('shifts', () => {
     }
   }
 
+  async function fetchMyApplications() {
+    const res = await apiFetch('/api/marketplace/applications/me')
+    applications.value = (res.applications || []).map(app => ({
+      ...app,
+      shift: app.shift ? normalizeShift(app.shift) : null
+    }))
+    return applications.value
+  }
+
   return {
     shifts,
     loading,
@@ -274,12 +285,11 @@ export const useShiftStore = defineStore('shifts', () => {
     openShifts,
     pendingApplicants,
     getShiftById,
-    myApplications,
     fetchManagerShifts,
     createShift,
+    addShift,
     updateShift,
     deleteShift,
-    publishShift,
     fetchMarketplace,
     applyToShift,
     fetchMyShifts,

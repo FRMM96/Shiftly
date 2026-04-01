@@ -7,7 +7,6 @@ import SignUp from './views/signUp.vue'
 import Home from './views/Home.vue'
 import ChangePassword from './views/ChangePassword.vue'
 
-// --- Manager Views ---
 import ManagerHome from './views/manager/ManagerHome.vue'
 import StaffDirectory from './views/manager/StaffDirectory.vue'
 import ApplicantReview from './views/manager/ApplicantReview.vue'
@@ -20,8 +19,8 @@ import ManagerNotifications from './views/manager/ManagerNotifications.vue'
 import ManagerTimeOff from './views/manager/ManagerTimeOff.vue'
 import ManagerSick from './views/manager/ManagerSick.vue'
 import ManagerOnboarding from './views/manager/ManagerOnboarding.vue'
+import ManagerStaffProfile from './views/manager/ManagerStaffProfile.vue'
 
-// --- Worker Views ---
 import WorkerHome from './views/worker/WorkerHome.vue'
 import MarketPlaceFeed from './views/worker/MarketPlaceFeed.vue'
 import WorkerProfile from './views/worker/WorkerProfile.vue'
@@ -35,19 +34,18 @@ import WorkerNotifications from './views/worker/WorkerNotifications.vue'
 import WorkerOnboarding from './views/worker/WorkerOnboarding.vue'
 
 const routes = [
-  { path: '/', name: 'root', redirect: '/home' },
+  { path: '/', redirect: '/home' },
 
-  // Public
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/signup', name: 'signup', component: SignUp, meta: { public: true } },
   { path: '/home', name: 'home', component: Home, meta: { public: true } },
   { path: '/change-password', name: 'ChangePassword', component: ChangePassword, meta: { requiresAuth: true } },
 
-  // Manager (requires auth + role)
   { path: '/manager', name: 'ManagerHome', component: ManagerHome, meta: { requiresAuth: true, role: 'BOSS' } },
   { path: '/manager/schedule', name: 'ManagerSchedule', component: ManagerSchedule, meta: { requiresAuth: true, role: 'BOSS' } },
   { path: '/manager/schedule/day/:date', name: 'DayDetailScreen', component: DayDetailScreen, meta: { requiresAuth: true, role: 'BOSS' } },
   { path: '/manager/staff', name: 'StaffDirectory', component: StaffDirectory, meta: { requiresAuth: true, role: 'BOSS' } },
+  { path: '/manager/staff/:id', name: 'ManagerStaffProfile', component: ManagerStaffProfile, meta: { requiresAuth: true, role: 'BOSS' } },
   { path: '/manager/applicants', name: 'ApplicantReview', component: ApplicantReview, meta: { requiresAuth: true, role: 'BOSS' } },
   { path: '/manager/applicants/:id', name: 'ApplicantDetails', component: ApplicantDetails, meta: { requiresAuth: true, role: 'BOSS' } },
   { path: '/manager/shift/:id?', name: 'CreateShift', component: CreateShift, meta: { requiresAuth: true, role: 'BOSS' } },
@@ -59,7 +57,6 @@ const routes = [
   { path: '/manager/analytics', name: 'ManagerAnalytics', component: () => import('./views/manager/ManagerAnalytics.vue'), meta: { requiresAuth: true, role: 'BOSS' } },
   { path: '/manager/documents', name: 'ManagerDocuments', component: () => import('./views/manager/ManagerDocuments.vue'), meta: { requiresAuth: true, role: 'BOSS' } },
 
-  // Worker
   { path: '/worker', name: 'WorkerHome', component: WorkerHome, meta: { requiresAuth: true, role: 'EMPLOYEE' } },
   { path: '/worker/marketplace', name: 'Marketplace', component: MarketPlaceFeed, meta: { requiresAuth: true, role: 'EMPLOYEE' } },
   { path: '/worker/marketplace/:id', name: 'ShiftDetail', component: ShiftDetail, meta: { requiresAuth: true, role: 'EMPLOYEE' } },
@@ -81,12 +78,14 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-
   const userStore = useUserStore()
 
-  // Hydrate session on refresh
   if (!userStore.user && userStore.token) {
-    try { await userStore.fetchMe() } catch { userStore.logout() }
+    try {
+      await userStore.fetchMe()
+    } catch {
+      userStore.logout()
+    }
   }
 
   if (to.meta.public) return true
@@ -94,7 +93,11 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAuth) {
     if (!userStore.token) return { name: 'login' }
     if (!userStore.user) {
-      try { await userStore.fetchMe() } catch { return { name: 'login' } }
+      try {
+        await userStore.fetchMe()
+      } catch {
+        return { name: 'login' }
+      }
     }
     if (to.meta.role && userStore.user?.role !== to.meta.role) {
       return userStore.user?.role === 'BOSS' ? { name: 'ManagerHome' } : { name: 'WorkerHome' }

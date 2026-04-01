@@ -252,6 +252,7 @@ onMounted(() => {
           </template>
         </div>
       </div>
+    </div>
   </WorkerLayout>
 </template>
 
@@ -579,67 +580,7 @@ onMounted(() => {
   height: 48px;
   background-color: rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.banner-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  opacity: 0.8;
-  display: block;
-  margin-bottom: 0.25rem;
-}
-
-.banner-text h3 {
-  font-size: 1.35rem;
-  font-weight: 800;
-  margin: 0;
-}
-
-.banner-right {
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-}
-
-.right-align { text-align: right; border-right: 1px solid rgba(255, 255, 255, 0.3); padding-right: 2rem; }
-
-.btn-clock-in {
-  background-color: #FFFFFF;
-  color: var(--primary);
-  border: none;
-  padding: 0.85rem 1.5rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: transform 0.1s;
-}
-
-.btn-clock-in:active { transform: scale(0.98); }
-
-/* --- Responsive Adjustments --- */
-@media (max-width: 1100px) {
-  .schedule-layout {
-    grid-template-columns: 1fr;
-  }
-  .bottom-banner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1.5rem;
-  }
-  .banner-right {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .right-align {
-    text-align: left;
-    border-right: none;
-    padding-right: 0;
-  }
+  padding: 1rem;
 }
 
 /* Loading & Empty States */

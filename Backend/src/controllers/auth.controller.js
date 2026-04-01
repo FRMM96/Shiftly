@@ -28,6 +28,55 @@ async function createUniqueInviteCode() {
   throw new Error('Failed to generate invite code')
 }
 
+async function buildSafeUser(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      role: true,
+      companyId: true,
+      createdAt: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+          inviteCode: true,
+          createdAt: true,
+          _count: {
+            select: {
+              users: true,
+              shifts: true,
+            },
+          },
+        },
+      },
+    },
+  })
+
+  if (!user) return null
+
+  return {
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    role: user.role,
+    companyId: user.companyId,
+    createdAt: user.createdAt,
+    company: user.company
+      ? {
+          id: user.company.id,
+          name: user.company.name,
+          inviteCode: user.company.inviteCode,
+          createdAt: user.company.createdAt,
+          totalUsers: user.company._count.users,
+          totalShifts: user.company._count.shifts,
+        }
+      : null,
+  }
+}
+
 exports.register = async (req, res) => {
   try {
     const { email, username, password, role, inviteCode, companyName } = req.body
@@ -36,12 +85,17 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: 'email, username, password, role are required' })
     }
 
-    // company logic
     let company = null
+    const trimmedCompanyName = String(companyName || '').trim()
+    const trimmedInviteCode = String(inviteCode || '').trim()
 
     if (role === 'BOSS') {
-      if (companyName && String(companyName).trim()) {
-        // Boss creates a new company
+      if (trimmedCompanyName) {
+        const existingCompany = await prisma.company.findUnique({ where: { name: trimmedCompanyName } })
+        if (existingCompany) {
+          return res.status(409).json({ message: 'A company with that name already exists' })
+        }
+
         const code = await createUniqueInviteCode()
         try {
           company = await prisma.company.create({
@@ -54,15 +108,13 @@ exports.register = async (req, res) => {
           throw dbErr
         }
       } else {
-        // Boss joins existing company via inviteCode
-        if (!inviteCode) {
+        if (!trimmedInviteCode) {
           return res.status(400).json({ message: 'Managers must provide companyName OR inviteCode' })
         }
-        company = await prisma.company.findUnique({ where: { inviteCode: String(inviteCode).trim() } })
+        company = await prisma.company.findUnique({ where: { inviteCode: trimmedInviteCode } })
         if (!company) return res.status(400).json({ message: 'Invalid invite code' })
       }
 
-      // manager limit
       const bossCount = await prisma.user.count({
         where: { companyId: company.id, role: 'BOSS' }
       })
@@ -70,9 +122,8 @@ exports.register = async (req, res) => {
         return res.status(400).json({ message: 'Manager limit reached for this company' })
       }
     } else {
-      // EMPLOYEE must join via inviteCode
-      if (!inviteCode) return res.status(400).json({ message: 'Employees must provide an inviteCode' })
-      company = await prisma.company.findUnique({ where: { inviteCode: String(inviteCode).trim() } })
+      if (!trimmedInviteCode) return res.status(400).json({ message: 'Employees must provide an inviteCode' })
+      company = await prisma.company.findUnique({ where: { inviteCode: trimmedInviteCode } })
       if (!company) return res.status(400).json({ message: 'Invalid invite code' })
     }
 
@@ -84,7 +135,7 @@ exports.register = async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10)
 
-    const user = await prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         email,
         username,
@@ -92,18 +143,14 @@ exports.register = async (req, res) => {
         role,
         companyId: company.id
       },
-      select: { id: true, email: true, username: true, role: true, companyId: true }
+      select: { id: true }
     })
 
+    const user = await buildSafeUser(created.id)
     const token = signToken(user)
 
-    // If boss created a company, return inviteCode so they can share it
-    const payload = {
-      token,
-      user,
-      company: { id: company.id, name: company.name }
-    }
-    if (role === 'BOSS' && companyName && String(companyName).trim()) {
+    const payload = { token, user }
+    if (role === 'BOSS' && trimmedCompanyName) {
       payload.companyInviteCode = company.inviteCode
     }
 
@@ -131,13 +178,7 @@ exports.login = async (req, res) => {
     const ok = await bcrypt.compare(password, user.passwordHash)
     if (!ok) return res.status(401).json({ message: 'Invalid credentials' })
 
-    const safeUser = {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      role: user.role,
-      companyId: user.companyId
-    }
+    const safeUser = await buildSafeUser(user.id)
     const token = signToken(safeUser)
 
     return res.json({ token, user: safeUser })

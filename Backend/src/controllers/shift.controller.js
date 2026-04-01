@@ -41,7 +41,9 @@ exports.createShift = async (req, res) => {
     const { business, roleName, date, startTime, endTime, pay, priority, workerId, status } = req.body;
 
     if (!business || !roleName || !date || !startTime || !endTime) {
-      return res.status(400).json({ message: "business, roleName, date, startTime, endTime required" });
+      return res.status(400).json({
+        message: "business, roleName, date, startTime, endTime required",
+      });
     }
 
     const dt = parseDateOnlyToUTC(date);
@@ -52,14 +54,23 @@ exports.createShift = async (req, res) => {
 
     const willBeOpen = status === "OPEN";
 
-    // validate worker is EMPLOYEE + same company when assigned
-    if (!willBeOpen && workerId) {
+    if (hasAssignedWorker) {
       await assertEmployeeExistsInMyCompany(workerId, req.user.companyId);
     }
+
+    const finalVisibility = hasAssignedWorker
+      ? "COMPANY"
+      : (visibility === "COMPANY" ? "COMPANY" : "GLOBAL");
+
+    const finalStatus = hasAssignedWorker
+      ? "ACTIVE"
+      : (status === "OPEN" || !status ? "OPEN" : status);
 
     const shift = await prisma.shift.create({
       data: {
         business,
+        location: location || null,
+        notes: notes || null,
         roleName,
         date: dt,
         startTime,
@@ -70,9 +81,8 @@ exports.createShift = async (req, res) => {
         status: willBeOpen ? "OPEN" : "ACTIVE",
 
         managerId: req.user.id,
-        companyId: req.user.companyId, // ✅ important
-
-        workerId: willBeOpen ? null : (workerId || null),
+        companyId: finalVisibility === "GLOBAL" ? null : req.user.companyId,
+        workerId: hasAssignedWorker ? workerId : null,
       },
       include: {
         worker: { select: { id: true, email: true, username: true } },
@@ -86,6 +96,44 @@ exports.createShift = async (req, res) => {
         `New open shift: ${roleName} on ${date}`,
         '/worker/marketplace'
       );
+        if (shift.visibility === "GLOBAL" && shift.status === "OPEN") {
+      const employees = await prisma.user.findMany({
+        where: { role: "EMPLOYEE" },
+        select: { id: true, email: true, username: true }
+      })
+
+      if (employees.length > 0) {
+        await prisma.notification.createMany({
+          data: employees.map(emp => ({
+            userId: emp.id,
+            type: "GLOBAL_SHIFT_POSTED",
+            title: "New global shift posted",
+            message: `${shift.roleName} at ${shift.business} on ${new Date(shift.date).toISOString().slice(0, 10)} (${shift.startTime}-${shift.endTime})`,
+            link: "/worker/marketplace"
+          }))
+        })
+
+        for (const emp of employees) {
+          sendEmail({
+            to: emp.email,
+            subject: "New global shift posted",
+            text: `A new global shift has been posted.\n\nRole: ${shift.roleName}\nBusiness: ${shift.business}\nDate: ${new Date(shift.date).toISOString().slice(0, 10)}\nTime: ${shift.startTime}-${shift.endTime}\n\nLog in to Shiftly to apply.`,
+            html: `
+              <h2>New global shift posted</h2>
+              <p>A new global shift is available.</p>
+              <ul>
+                <li><strong>Role:</strong> ${shift.roleName}</li>
+                <li><strong>Business:</strong> ${shift.business}</li>
+                <li><strong>Date:</strong> ${new Date(shift.date).toISOString().slice(0, 10)}</li>
+                <li><strong>Time:</strong> ${shift.startTime}-${shift.endTime}</li>
+              </ul>
+              <p>Log in to Shiftly to apply.</p>
+            `
+          }).catch(err => {
+            console.error('Email send failed:', err.message)
+          })
+        }
+      }
     }
 
     return res.status(201).json({ shift });
@@ -98,7 +146,7 @@ exports.createShift = async (req, res) => {
 exports.listManagerShifts = async (req, res) => {
   try {
     const { from, to } = req.query;
-    const where = { managerId: req.user.id, companyId: req.user.companyId }; // ✅ scoped
+    const where = { managerId: req.user.id };
 
     if (from || to) {
       where.date = {};
@@ -134,7 +182,6 @@ exports.listMyShifts = async (req, res) => {
     const shifts = await prisma.shift.findMany({
       where: {
         workerId: req.user.id,
-        companyId: req.user.companyId, // ✅ extra safety
         status: { not: "CANCELED" },
       },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
@@ -164,16 +211,21 @@ exports.getShift = async (req, res) => {
 
     if (!shift) return res.status(404).json({ message: "Shift not found" });
 
-    // ✅ Company gate FIRST
-    if (shift.companyId !== req.user.companyId) {
-      return res.status(403).json({ message: "Forbidden" });
+    if (req.user.role === "BOSS") {
+      if (shift.managerId !== req.user.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
     }
 
-    if (req.user.role === "BOSS" && shift.managerId !== req.user.id) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-    if (req.user.role === "EMPLOYEE" && shift.workerId !== req.user.id) {
-      return res.status(403).json({ message: "Forbidden" });
+    if (req.user.role === "EMPLOYEE") {
+      const canSee =
+        shift.workerId === req.user.id ||
+        (shift.visibility === "GLOBAL" && shift.status === "OPEN") ||
+        (shift.companyId === req.user.companyId);
+
+      if (!canSee) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
     }
 
     return res.json({ shift });
@@ -189,15 +241,15 @@ exports.updateShift = async (req, res) => {
 
     const existing = await prisma.shift.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: "Shift not found" });
-
-    // ✅ company + manager check
-    if (existing.companyId !== req.user.companyId) return res.status(403).json({ message: "Forbidden" });
     if (existing.managerId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
 
     const { business, roleName, date, startTime, endTime, pay, priority, workerId, status } = req.body;
 
     const data = {};
+
     if (business !== undefined) data.business = business;
+    if (location !== undefined) data.location = location || null;
+    if (notes !== undefined) data.notes = notes || null;
     if (roleName !== undefined) data.roleName = roleName;
     if (startTime !== undefined) data.startTime = startTime;
     if (endTime !== undefined) data.endTime = endTime;
@@ -218,15 +270,27 @@ exports.updateShift = async (req, res) => {
       if (workerId) {
         await assertEmployeeExistsInMyCompany(workerId, req.user.companyId);
         data.workerId = workerId;
-
-        if (data.status === "OPEN") data.status = "ACTIVE";
-        if (data.status === undefined) data.status = "ACTIVE";
+        data.visibility = "COMPANY";
+        data.companyId = req.user.companyId;
+        data.status = "ACTIVE";
       } else {
         data.workerId = null;
       }
     }
 
-    if (data.status === "OPEN") data.workerId = null;
+    if (visibility !== undefined && !data.workerId) {
+      const nextVisibility = visibility === "COMPANY" ? "COMPANY" : "GLOBAL";
+      data.visibility = nextVisibility;
+      data.companyId = nextVisibility === "GLOBAL" ? null : req.user.companyId;
+      if (nextVisibility === "GLOBAL" && data.status === undefined) {
+        data.status = "OPEN";
+      }
+    }
+
+    if (data.status === "OPEN" && !data.workerId && data.visibility === undefined) {
+      data.visibility = existing.visibility || "GLOBAL";
+      data.companyId = data.visibility === "GLOBAL" ? null : req.user.companyId;
+    }
 
     const shift = await prisma.shift.update({
       where: { id },
@@ -288,9 +352,6 @@ exports.deleteShift = async (req, res) => {
 
     const existing = await prisma.shift.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: "Shift not found" });
-
-    // ✅ company + manager check
-    if (existing.companyId !== req.user.companyId) return res.status(403).json({ message: "Forbidden" });
     if (existing.managerId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
 
     await prisma.shift.delete({ where: { id } });

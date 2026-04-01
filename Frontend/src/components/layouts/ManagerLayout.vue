@@ -1,3 +1,6 @@
+
+
+
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useUserStore } from '../../stores/userStore'
@@ -10,10 +13,18 @@ onMounted(() => {
   notificationStore.fetchNotifications().catch(() => {})
 })
 
+onMounted(() => {
+  if (userStore.token && !userStore.user) {
+    userStore.fetchMe().catch(() => {})
+  }
+})
+
 const currentUser = computed(() => ({
   name: userStore.user?.username || 'Manager',
   role: userStore.user?.role || 'BOSS',
   avatar: userStore.user ? `https://i.pravatar.cc/150?u=${userStore.user.id}` : 'https://i.pravatar.cc/150?u=default'
+  role: userStore.user?.company?.name || userStore.user?.role || 'BOSS',
+  avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userStore.user?.username || 'Manager')}&background=0B1736&color=fff`
 }))
 </script>
 
@@ -21,12 +32,7 @@ const currentUser = computed(() => ({
   <div class="manager-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="24" height="24" rx="4" fill="#0052CC"/>
-          <circle cx="8" cy="8" r="2" fill="white"/>
-          <circle cx="16" cy="16" r="2" fill="white"/>
-          <line x1="9" y1="9" x2="15" y2="15" stroke="white" stroke-width="2"/>
-        </svg>
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#0052CC"/><circle cx="16" cy="16" r="6" fill="white"/><circle cx="8" cy="8" r="2" fill="white"/><circle cx="24" cy="8" r="2" fill="white"/><circle cx="8" cy="24" r="2" fill="white"/><circle cx="24" cy="24" r="2" fill="white"/><line x1="9" y1="9" x2="15" y2="15" stroke="white" stroke-width="2"/></svg>
         <h2>Radix Manager</h2>
       </div>
 
@@ -36,13 +42,9 @@ const currentUser = computed(() => ({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
           Dashboard
         </router-link>
-        <router-link to="/manager/schedule" class="nav-item" active-class="active">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-          Shifts Management
-        </router-link>
-        <router-link to="/manager/applicants" class="nav-item" active-class="active">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
-          New Applicants
+        <router-link to="/manager/shift" class="nav-item" active-class="active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+          Create Shift
         </router-link>
         <router-link to="/manager/staff" class="nav-item" active-class="active">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -67,9 +69,9 @@ const currentUser = computed(() => ({
       </nav>
 
       <div class="system-health">
-        <span class="health-label">System Health</span>
+        <span class="health-label">Company</span>
         <div class="health-bar"><div class="health-fill"></div></div>
-        <span class="health-status">All regions operational</span>
+        <span class="health-status">{{ userStore.user?.company?.name || 'No company loaded' }}</span>
       </div>
     </aside>
 
