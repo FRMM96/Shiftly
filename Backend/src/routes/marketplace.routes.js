@@ -4,6 +4,8 @@ const router = express.Router();
 
 const { requireAuth } = require("../middleware/auth.middleware");
 const { requireRole } = require("../middleware/role.middleware");
+const { validate } = require("../middleware/validate.middleware");
+const { assignApplicantSchema } = require("../schemas");
 
 const marketplaceController = require("../controllers/marketplace.controller");
 
@@ -31,7 +33,16 @@ router.post(
   "/shifts/:id/assign",
   requireAuth,
   requireRole("BOSS"),
+  validate(assignApplicantSchema),
   marketplaceController.assignApplicant
+);
+
+// Manager rejects a single applicant
+router.patch(
+  "/shifts/:id/applications/:applicationId/reject",
+  requireAuth,
+  requireRole("BOSS"),
+  marketplaceController.rejectApplicant
 );
 
 module.exports = router;

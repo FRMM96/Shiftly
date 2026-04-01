@@ -1,0 +1,80 @@
+/* ============================================================
+   Radix - Global Design System
+   Single source of truth for CSS custom properties.
+   All colors, spacing, and semantic tokens live here.
+   ============================================================ */
+
+:root {
+  /* --- Brand / Primary --- */
+  --primary: #0052CC;
+  --primary-hover: #0043A6;
+  --primary-light: #EFF6FF;
+
+  /* --- Backgrounds --- */
+  --bg-main: #F4F7F9;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #FFFFFF;
+  --bg-color: #F8FAFC;
+
+  /* --- Text --- */
+  --text-dark: #111827;
+  --text-body: #4B5563;
+  --text-muted: #6B7280;
+  --text-main: #0F172A;
+
+  /* --- Borders --- */
+  --border: #E5E7EB;
+  --border-light: #F3F4F6;
+
+  /* --- Semantic Colors: Red / Danger --- */
+  --red-bg: #FEF2F2;
+  --red-border: #EF4444;
+  --red-text: #991B1B;
+  --danger-bg: #FEF2F2;
+  --danger-border: #FCA5A5;
+  --danger-text: #DC2626;
+
+  /* --- Semantic Colors: Orange / Warning --- */
+  --orange-bg: #FFF7ED;
+  --orange-border: #F59E0B;
+  --orange-text: #9A3412;
+  --urgency-bg: #FFF7ED;
+  --urgency-text: #C2410C;
+  --warning-text: #D97706;
+
+  /* --- Semantic Colors: Blue / Info --- */
+  --blue-bg: #EFF6FF;
+  --blue-border: #3B82F6;
+  --blue-text: #1E40AF;
+  --info-bg: #EFF6FF;
+  --info-text: #1D4ED8;
+
+  /* --- Semantic Colors: Green / Success --- */
+  --green-bg: #DCFCE3;
+  --green-border: #10B981;
+  --green-text: #166534;
+  --success-bg: #10B981;
+  --success-text: #059669;
+
+  /* --- Neutral --- */
+  --neutral-bg: #F3F4F6;
+  --neutral-text: #6B7280;
+
+  /* --- Status Dots --- */
+  --dot-green: #22C55E;
+  --dot-yellow: #EAB308;
+  --dot-gray: #9CA3AF;
+
+  /* --- Star Rating --- */
+  --star-color: #F59E0B;
+
+  /* --- Card variables (worker-side alias) --- */
+  --card-bg: #FFFFFF;
+}
+
+/* ============================================================
+   Global Base Styles
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+}

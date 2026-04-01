@@ -37,26 +37,22 @@ const job = computed(() => {
       deadline: 'Apply before this shift is filled'
     }
   }
-  // Fallback static mock
+  // Shift not found in store
   return {
-    title: 'Morning Barista Specialist',
-    badge: 'URGENT FILL',
-    company: 'Downtown Coffee Collective',
-    distance: '1.2 miles away',
+    title: 'Shift Not Found',
+    badge: '',
+    company: '—',
+    distance: '',
     heroImage: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
-    role: 'Senior Barista',
-    payRate: '$24.50 / hr',
-    date: 'Tuesday, Oct 24, 2023',
-    time: '08:00 AM - 04:00 PM (8h)',
-    requirements: [
-      '2+ years of latte art experience required',
-      'Food Handler\'s Certificate must be valid',
-      'Ability to work in a high-volume environment'
-    ],
-    address: '245 SE Division St., Portland',
-    arrivalInstructions: 'Please arrive 15 minutes early and check in with the shift lead at the back entrance.',
-    estimatedEarnings: '$196.00',
-    deadline: 'APPLICATION DEADLINE IN 4 HOURS'
+    role: '—',
+    payRate: '—',
+    date: '—',
+    time: '—',
+    requirements: ['No details available for this shift.'],
+    address: '—',
+    arrivalInstructions: 'Contact your manager for arrival details.',
+    estimatedEarnings: '—',
+    deadline: ''
   }
 })
 
@@ -251,17 +247,6 @@ const closeModal = () => {
 
 <style scoped>
 /* --- Base Styling --- */
-:root {
-  --primary: #1D4ED8; /* Darker blue for apply button */
-  --primary-light: #2563EB; /* Blue for icons/text */
-  --bg-color: #F8FAFC;
-  --card-bg: #FFFFFF;
-  --text-main: #111827;
-  --text-muted: #6B7280;
-  --border: #E5E7EB;
-}
-
-
 
 /* --- Top Action Bar --- */
 .top-bar {

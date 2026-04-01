@@ -1,12 +1,35 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { apiFetch } from '../lib/api'
+import api from '../services/api'
 import { useUserStore } from './userStore'
 
 export const useShiftStore = defineStore('shifts', () => {
   const shifts = ref([])
+  const loading = ref(false)
+  const error = ref(null)
 
   const openShifts = computed(() => shifts.value.filter(s => s.status === 'OPEN'))
+
+  // All applicants across every open shift (for the Manager dashboard panel)
+  const pendingApplicants = computed(() => {
+    const seen = new Set()
+    const result = []
+    for (const shift of openShifts.value) {
+      if (!Array.isArray(shift.applications)) continue
+      for (const app of shift.applications) {
+        if (!seen.has(app.id)) {
+          seen.add(app.id)
+          result.push({
+            id: app.id,
+            name: app.workerName || app.username || 'Unknown',
+            role: shift.role || shift.roleName || 'Applicant',
+            shiftId: shift.id
+          })
+        }
+      }
+    }
+    return result
+  })
 
   const getShiftById = (id) => shifts.value.find(s => s.id == id)
 
@@ -20,126 +43,236 @@ export const useShiftStore = defineStore('shifts', () => {
 
   // --- Manager actions ---
   async function fetchManagerShifts(params = {}) {
-    const q = new URLSearchParams(params).toString()
-    const res = await apiFetch(`/api/shifts${q ? `?${q}` : ''}`)
-    // Normalize for frontend components expecting `date` as YYYY-MM-DD
-    shifts.value = res.shifts.map(s => ({
-      ...s,
-      date: new Date(s.date).toISOString().slice(0, 10),
-      role: s.roleName, // backward-compat for components using `role`
-      applicants: undefined
-    }))
-    return shifts.value
+    loading.value = true
+    error.value = null
+    try {
+      const q = new URLSearchParams(params).toString()
+      const response = await api.get(`/shifts${q ? `?${q}` : ''}`)
+      // Normalize for frontend components expecting `date` as YYYY-MM-DD
+      shifts.value = response.data.shifts.map(s => {
+        const d = new Date(s.date)
+        return {
+          ...s,
+          date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+          role: s.roleName, // backward-compat for components using `role`
+          applicants: undefined
+        }
+      })
+      return shifts.value
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to fetch manager shifts'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
   }
 
   async function createShift(newShift) {
-    const body = {
-      business: newShift.business || 'Shiftly Business',
-      roleName: newShift.role || newShift.roleName,
-      date: newShift.date, // YYYY-MM-DD
-      startTime: newShift.startTime,
-      endTime: newShift.endTime,
-      pay: newShift.pay,
-      workerId: newShift.workerId || null,
-      status: newShift.status === 'open' || newShift.status === 'OPEN' ? 'OPEN' : 'ACTIVE'
+    loading.value = true
+    try {
+      const body = {
+        business: newShift.business || 'Shiftly Business',
+        roleName: newShift.role || newShift.roleName,
+        date: newShift.date, // YYYY-MM-DD
+        startTime: newShift.startTime,
+        endTime: newShift.endTime,
+        pay: newShift.pay,
+        priority: newShift.priority || 'NORMAL',
+        workerId: newShift.workerId || null,
+        status: newShift.status === 'open' || newShift.status === 'OPEN' ? 'OPEN' : 'ACTIVE'
+      }
+      const response = await api.post('/shifts', body)
+      await fetchManagerShifts()
+      return response.data.shift
+    } catch (err) {
+      console.error('Create shift error:', err.response?.data || err.message)
+      error.value = err.response?.data?.message || err.message || 'Failed to create shift'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
     }
-    const res = await apiFetch('/api/shifts', { method: 'POST', body })
-    await fetchManagerShifts()
-    return res.shift
   }
 
   async function updateShift(updatedShift) {
-    const body = {
-      business: updatedShift.business,
-      roleName: updatedShift.role || updatedShift.roleName,
-      date: updatedShift.date,
-      startTime: updatedShift.startTime,
-      endTime: updatedShift.endTime,
-      pay: updatedShift.pay,
-      workerId: updatedShift.workerId,
-      status: updatedShift.status
+    loading.value = true
+    try {
+      const body = {
+        business: updatedShift.business,
+        roleName: updatedShift.role || updatedShift.roleName,
+        date: updatedShift.date,
+        startTime: updatedShift.startTime,
+        endTime: updatedShift.endTime,
+        pay: updatedShift.pay,
+        workerId: updatedShift.workerId,
+        status: updatedShift.status
+      }
+      const response = await api.patch(`/shifts/${updatedShift.id}`, body)
+      await fetchManagerShifts()
+      return response.data.shift
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to update shift'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
     }
-    const res = await apiFetch(`/api/shifts/${updatedShift.id}`, { method: 'PATCH', body })
-    await fetchManagerShifts()
-    return res.shift
   }
 
   async function deleteShift(id) {
-    await apiFetch(`/api/shifts/${id}`, { method: 'DELETE' })
-    await fetchManagerShifts()
+    loading.value = true
+    try {
+      await api.delete(`/shifts/${id}`)
+      await fetchManagerShifts()
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to delete shift'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
   }
 
   async function publishShift(id) {
-    // Set to OPEN (and clear worker)
-    await apiFetch(`/api/shifts/${id}`, { method: 'PATCH', body: { status: 'OPEN', workerId: null } })
-    await fetchManagerShifts()
+    loading.value = true
+    try {
+      // Set to OPEN (and clear worker)
+      await api.patch(`/shifts/${id}`, { status: 'OPEN', workerId: null })
+      await fetchManagerShifts()
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to publish shift'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
   }
 
   // --- Worker actions ---
   async function fetchMarketplace() {
+    loading.value = true
     try {
-      const res = await apiFetch('/api/marketplace/shifts')
-      shifts.value = res.shifts.map(s => ({
-        ...s,
-        date: new Date(s.date).toISOString().slice(0, 10),
-        role: s.roleName,
-      }))
-    } catch (e) {
-      console.warn('Backend unavailable, using fake marketplace data')
-      shifts.value = [
-        { 
-          id: 1000, date: '2026-03-05', role: 'Bartender', roleName: 'Bartender', business: 'The Corner Pub', startTime: '18:00', endTime: '02:00', pay: '$150', status: 'OPEN',
-          tasks: ['Mix and serve drinks', 'Chat with customers', 'Keep bar area clean'],
-          expectations: 'Fast-paced environment, need to handle multiple orders at once.',
-          requirements: ['2+ years experience', 'Knowledge of classic cocktails']
-        },
-        { 
-          id: 1001, date: '2026-03-06', role: 'Waiter', roleName: 'Waiter', business: 'Fine Dine Restaurant', startTime: '17:00', endTime: '23:00', pay: '$120', status: 'OPEN',
-          tasks: ['Take orders and serve food', 'Ensure guest satisfaction', 'Handle payments'],
-          expectations: 'High standard of customer service, professional demeanor.',
-          requirements: ['Previous fine dining experience', 'Excellent communication skills']
-        },
-        { 
-          id: 1002, date: '2026-03-10', role: 'Barista', roleName: 'Barista', business: 'Morning Coffee Shop', startTime: '06:00', endTime: '14:00', pay: '$100', status: 'OPEN',
-          tasks: ['Prepare coffee beverages', 'Operate espresso machine', 'Manage cash register'],
-          expectations: 'Friendly attitude, ability to remember regular customers\' orders.',
-          requirements: ['Latte art skills preferred', 'Early riser']
+      const response = await api.get('/marketplace/shifts')
+      shifts.value = response.data.shifts.map(s => {
+        const d = new Date(s.date)
+        return {
+          ...s,
+          date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+          role: s.roleName,
         }
-      ]
+      })
+      return shifts.value
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to fetch marketplace'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
     }
-    return shifts.value
   }
 
   async function applyToShift(shiftId) {
-    await apiFetch(`/api/marketplace/shifts/${shiftId}/apply`, { method: 'POST' })
-    await fetchMarketplace()
+    loading.value = true
+    try {
+      await api.post(`/marketplace/shifts/${shiftId}/apply`)
+      await fetchMarketplace()
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to apply'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
   }
 
   async function fetchMyShifts() {
-    const res = await apiFetch('/api/shifts/me')
-    shifts.value = res.shifts.map(s => ({
-      ...s,
-      date: new Date(s.date).toISOString().slice(0, 10),
-      role: s.roleName
-    }))
-    return shifts.value
+    loading.value = true
+    error.value = null
+    try {
+      const response = await api.get('/shifts/me')
+      shifts.value = response.data.shifts.map(s => {
+        const d = new Date(s.date)
+        return {
+          ...s,
+          date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+          role: s.roleName
+        }
+      })
+      return shifts.value
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to fetch my shifts'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
   }
 
   // --- Manager: applicants + assign ---
   async function fetchApplicants(shiftId) {
-    const res = await apiFetch(`/api/marketplace/shifts/${shiftId}/applicants`)
-    return res.applicants
+    loading.value = true
+    try {
+      const response = await api.get(`/marketplace/shifts/${shiftId}/applicants`)
+      return response.data.applicants
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to fetch applicants'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
   }
 
   async function assignApplicant(shiftId, applicationId) {
-    const res = await apiFetch(`/api/marketplace/shifts/${shiftId}/assign`, { method: 'POST', body: { applicationId } })
-    await fetchManagerShifts()
-    return res
+    loading.value = true
+    try {
+      const response = await api.post(`/marketplace/shifts/${shiftId}/assign`, { applicationId })
+      await fetchManagerShifts()
+      return response.data
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to assign applicant'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * Approve an applicant for a shift.
+   * Calls POST /marketplace/shifts/:shiftId/assign with { applicationId }.
+   * The backend atomically: accepts the chosen application, rejects all others,
+   * assigns the worker, and flips the shift status to ACTIVE.
+   * On success, removes the shift from local openShifts state.
+   */
+  async function approveApplicant(shiftId, applicationId) {
+    loading.value = true
+    try {
+      const response = await api.post(`/marketplace/shifts/${shiftId}/assign`, { applicationId })
+      // Remove from local shifts since status is now ACTIVE (no longer OPEN)
+      shifts.value = shifts.value.filter(s => s.id !== shiftId)
+      return response.data
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to approve applicant'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function rejectApplicant(shiftId, applicationId) {
+    loading.value = true
+    try {
+      await api.patch(`/marketplace/shifts/${shiftId}/applications/${applicationId}/reject`)
+      const shift = shifts.value.find(s => s.id === shiftId)
+      if (shift && Array.isArray(shift.applications)) {
+        shift.applications = shift.applications.filter(a => a.id !== applicationId)
+      }
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to reject applicant'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
   }
 
   return {
     shifts,
+    loading,
+    error,
     openShifts,
+    pendingApplicants,
     getShiftById,
     myApplications,
     fetchManagerShifts,
@@ -151,6 +284,8 @@ export const useShiftStore = defineStore('shifts', () => {
     applyToShift,
     fetchMyShifts,
     fetchApplicants,
-    assignApplicant
+    assignApplicant,
+    approveApplicant,
+    rejectApplicant
   }
 })

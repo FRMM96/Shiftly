@@ -43,9 +43,16 @@ exports.register = async (req, res) => {
       if (companyName && String(companyName).trim()) {
         // Boss creates a new company
         const code = await createUniqueInviteCode()
-        company = await prisma.company.create({
-          data: { name: String(companyName).trim(), inviteCode: code }
-        })
+        try {
+          company = await prisma.company.create({
+            data: { name: String(companyName).trim(), inviteCode: code }
+          })
+        } catch (dbErr) {
+          if (dbErr.code === 'P2002') {
+            return res.status(409).json({ message: 'Company name already in use' })
+          }
+          throw dbErr
+        }
       } else {
         // Boss joins existing company via inviteCode
         if (!inviteCode) {
@@ -141,5 +148,12 @@ exports.login = async (req, res) => {
 }
 
 exports.me = async (req, res) => {
+  if (req.user.companyId) {
+    const company = await prisma.company.findUnique({
+      where: { id: req.user.companyId },
+      select: { id: true, name: true, inviteCode: true }
+    })
+    return res.json({ user: { ...req.user, company } })
+  }
   return res.json({ user: req.user })
 }

@@ -1,11 +1,18 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useUserStore } from '../../stores/userStore'
+import { useNotificationStore } from '../../stores/notificationStore'
 
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
+
+onMounted(() => {
+  notificationStore.fetchNotifications().catch(() => {})
+})
 
 const user = computed(() => ({
-  name: userStore.user?.username || 'Alex'
+  name: userStore.user?.username || 'Worker',
+  avatar: userStore.user ? `https://i.pravatar.cc/150?u=${userStore.user.id}` : 'https://i.pravatar.cc/150?u=default'
 }))
 </script>
 
@@ -26,15 +33,15 @@ const user = computed(() => ({
       </nav>
 
       <div class="nav-actions">
-        <button class="icon-btn">
+        <router-link to="/worker/notifications" class="icon-btn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-          <span class="notification-dot"></span>
-        </button>
+          <span v-if="notificationStore.unreadCount > 0" class="notification-dot"></span>
+        </router-link>
         <button class="icon-btn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
         </button>
         <router-link to="/worker/profile" class="avatar">
-           <img src="https://i.pravatar.cc/150?u=alex_worker" alt="User Profile" />
+           <img :src="user.avatar" alt="User Profile" />
         </router-link>
       </div>
     </header>
@@ -59,6 +66,10 @@ const user = computed(() => ({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
             Time Off
           </router-link>
+          <router-link to="/worker/notifications" class="menu-item" active-class="active">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            Notifications
+          </router-link>
         </div>
 
         <div class="profile-strength">
@@ -78,11 +89,11 @@ const user = computed(() => ({
     <footer class="app-footer">
       <div class="footer-left">
         <div class="help-icon">?</div>
-        <span>Need help with your shifts? <a href="#" class="support-link">Contact Support</a></span>
+        <span>Need help with your shifts? <a href="mailto:support@radix.app" class="support-link">Contact Support</a></span>
       </div>
       <div class="footer-right">
-        <a href="#">Terms of Service</a>
-        <a href="#">Privacy Policy</a>
+        <span class="footer-static-link">Terms of Service</span>
+        <span class="footer-static-link">Privacy Policy</span>
         <div class="footer-icons">
           <div class="icon-box light">L</div>
           <div class="icon-box dark">D</div>
@@ -94,15 +105,6 @@ const user = computed(() => ({
 
 <style scoped>
 /* --- Base Theme & Reset --- */
-:root {
-  --bg-color: #f8fafc;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --card-bg: #ffffff;
-  --border: #e2e8f0;
-}
 
 .app-layout {
   min-height: 100vh;
@@ -338,6 +340,12 @@ const user = computed(() => ({
   color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
+}
+
+.footer-static-link {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  cursor: default;
 }
 
 .footer-icons {

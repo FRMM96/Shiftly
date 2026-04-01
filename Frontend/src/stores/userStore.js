@@ -1,62 +1,53 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { apiFetch, setToken } from '../lib/api'
+import api from '../services/api'
 
 export const useUserStore = defineStore('user', () => {
 
   // Session state
-  const token = ref(typeof window !== 'undefined' ? localStorage.getItem('shiftly_token') : null)
+  const token = ref(typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null)
   const user = ref(null)
 
 
   const isLoggedIn = computed(() => !!token.value && !!user.value)
   const isBoss = computed(() => user.value?.role === 'BOSS')
   const isEmployee = computed(() => user.value?.role === 'EMPLOYEE')
+  
+  const isManager = computed(() => user.value?.role === 'BOSS')
+  const isWorker = computed(() => user.value?.role === 'EMPLOYEE')
 
   async function register({ email, username, password, role, inviteCode, companyName }) {
-  const res = await apiFetch('/api/auth/register', {
-    method: 'POST',
-    auth: false,
-    body: { email, username, password, role, inviteCode, companyName }
-  })
-  token.value = res.token
-  setToken(res.token)
-  user.value = res.user
-  return res
-}
+    const res = await api.post('/auth/register', { email, username, password, role, inviteCode, companyName })
+    token.value = res.data.token
+    localStorage.setItem('auth_token', res.data.token)
+    user.value = res.data.user
+    return res.data
+  }
 
   async function login({ emailOrUsername, password }) {
-    const res = await apiFetch('/api/auth/login', {
-      method: 'POST',
-      auth: false,
-      body: { emailOrUsername, password }
-    })
-    token.value = res.token
-    setToken(res.token)
-    user.value = res.user
-    return res
+    const res = await api.post('/auth/login', { emailOrUsername, password })
+    token.value = res.data.token
+    localStorage.setItem('auth_token', res.data.token)
+    user.value = res.data.user
+    return res.data
   }
 
   async function fetchMe() {
     if (!token.value) return null
-    const res = await apiFetch('/api/auth/me', { method: 'GET', auth: true })
-    user.value = res.user
-    return res.user
+    const res = await api.get('/auth/me')
+    user.value = res.data.user
+    return res.data.user
   }
 
   function logout() {
     token.value = null
     user.value = null
-    setToken(null)
+    localStorage.removeItem('auth_token')
   }
 
-  /**
-   * Boss-only: fetch REAL users from the database.
-   * Use: await userStore.fetchEmployees()
-   */
   async function fetchEmployees() {
-    const res = await apiFetch('/api/users?role=EMPLOYEE', { method: 'GET', auth: true })
-    return res.users || []
+    const res = await api.get('/users?role=EMPLOYEE')
+    return res.data.users || []
   }
 
   // UI helpers (client-only)
@@ -88,6 +79,8 @@ export const useUserStore = defineStore('user', () => {
     isLoggedIn,
     isBoss,
     isEmployee,
+    isManager,
+    isWorker,
     register,
     login,
     fetchMe,

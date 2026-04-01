@@ -1,94 +1,68 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
+import UserAvatar from '../../components/shared/UserAvatar.vue'
+import { useStaffStore } from '../../stores/staffStore'
+import { useUserStore } from '../../stores/userStore'
+import { storeToRefs } from 'pinia'
 
-// --- Mock Data ---
-const currentUser = ref({
-  avatar: 'https://i.pravatar.cc/150?u=manager_admin'
+const staffStore = useStaffStore()
+const userStore = useUserStore()
+const { staffList, searchQuery, selectedDepartment, selectedStatus, loading } = storeToRefs(staffStore)
+
+const showInviteModal = ref(false)
+const inviteCode = computed(() => userStore.user?.company?.inviteCode || 'N/A')
+const copied = ref(false)
+
+const copyInviteCode = () => {
+  navigator.clipboard.writeText(inviteCode.value).then(() => {
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 2000)
+  }).catch(() => {})
+}
+
+const currentPage = ref(1)
+const perPage = 6
+
+const filteredStaff = computed(() => {
+  let list = staffList.value
+  const q = searchQuery.value.toLowerCase().trim()
+  if (q) {
+    list = list.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      s.role.toLowerCase().includes(q) ||
+      s.department.toLowerCase().includes(q)
+    )
+  }
+  if (selectedDepartment.value !== 'All') {
+    list = list.filter(s => s.department === selectedDepartment.value)
+  }
+  if (selectedStatus.value !== 'All') {
+    list = list.filter(s => s.status === selectedStatus.value)
+  }
+  return list
 })
 
-const staffList = ref([
-  {
-    id: 1,
-    name: 'Sarah Chen',
-    role: 'Senior DevOps Engineer',
-    department: 'Engineering',
-    team: 'Platform Team',
-    email: 's.chen@radix.io',
-    status: 'Approved',
-    statusType: 'success',
-    dotColor: 'bg-green',
-    avatar: 'https://i.pravatar.cc/150?u=sarah_chen',
-    initials: 'SC'
-  },
-  {
-    id: 2,
-    name: 'Marcus Thompson',
-    role: 'Lead Product Designer',
-    department: 'Design',
-    team: 'UX Strategy',
-    email: 'm.thompson@radix.io',
-    status: 'Pending Review',
-    statusType: 'info',
-    dotColor: 'bg-yellow',
-    avatar: 'https://i.pravatar.cc/150?u=marcus_thompson',
-    initials: 'MT'
-  },
-  {
-    id: 3,
-    name: 'Elena Rodriguez',
-    role: 'Frontend Developer',
-    department: 'Engineering',
-    team: 'UI Core Team',
-    email: 'e.rodriguez@radix.io',
-    status: 'Approved',
-    statusType: 'success',
-    dotColor: 'bg-green',
-    avatar: 'https://i.pravatar.cc/150?u=elena_rodriguez',
-    initials: 'ER'
-  },
-  {
-    id: 4,
-    name: 'David Kim',
-    role: 'Solutions Architect',
-    department: 'Sales Engineering',
-    team: '',
-    email: 'd.kim@radix.io',
-    status: 'Inactive',
-    statusType: 'neutral',
-    dotColor: 'bg-gray',
-    avatar: 'https://i.pravatar.cc/150?u=david_kim',
-    initials: 'DK'
-  },
-  {
-    id: 5,
-    name: 'Jordan Taylor',
-    role: 'Backend Engineer',
-    department: 'Engineering',
-    team: 'Data Systems',
-    email: 'j.taylor@radix.io',
-    status: 'Approved',
-    statusType: 'success',
-    dotColor: 'bg-green',
-    avatar: null, // No avatar to show initial placeholder
-    initials: 'JT'
-  },
-  {
-    id: 6,
-    name: 'Aisha Khan',
-    role: 'Growth Marketing Manager',
-    department: 'Marketing',
-    team: 'Retention',
-    email: 'a.khan@radix.io',
-    status: 'Approved',
-    statusType: 'success',
-    dotColor: 'bg-green',
-    avatar: 'https://i.pravatar.cc/150?u=aisha_khan',
-    initials: 'AK'
-  }
-])
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredStaff.value.length / perPage)))
+const paginatedStaff = computed(() => {
+  const start = (currentPage.value - 1) * perPage
+  return filteredStaff.value.slice(start, start + perPage)
+})
+const showingFrom = computed(() => filteredStaff.value.length === 0 ? 0 : (currentPage.value - 1) * perPage + 1)
+const showingTo = computed(() => Math.min(currentPage.value * perPage, filteredStaff.value.length))
 
-const searchQuery = ref('')
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) currentPage.value = page
+}
+
+const handleClear = () => {
+  staffStore.clearFilters()
+  currentPage.value = 1
+}
+
+onMounted(() => {
+  staffStore.fetchEmployees().catch(() => {})
+})
 </script>
 
 <template>
@@ -97,9 +71,9 @@ const searchQuery = ref('')
         <div class="page-header">
           <div class="header-title">
             <h1>Staff Directory</h1>
-            <p>Manage and monitor 124 active personnel across departments.</p>
+            <p>Manage and monitor {{ filteredStaff.length }} active personnel across departments.</p>
           </div>
-          <button class="btn btn-primary">
+          <button class="btn btn-primary" @click="showInviteModal = true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
             Add New Worker
           </button>
@@ -113,38 +87,40 @@ const searchQuery = ref('')
           
           <div class="filter-controls">
             <div class="dropdown-btn">
-              All Departments
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-            
-            <div class="filter-pill">
-              Engineering
-              <button class="remove-pill"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
-            </div>
-            
-            <div class="dropdown-btn">
-              Marketing
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-            
-            <div class="dropdown-btn">
-              Status: Active
+              {{ selectedDepartment === 'All' ? 'All Departments' : selectedDepartment }}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
 
-            <button class="clear-filters-btn">Clear all filters</button>
+            <div class="dropdown-btn">
+              Status: {{ selectedStatus }}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+
+            <button class="clear-filters-btn" @click="handleClear">Clear all filters</button>
           </div>
         </div>
 
-        <div class="staff-grid">
-          <div v-for="staff in staffList" :key="staff.id" class="staff-card">
+        <div v-if="loading" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading staff directory...</p>
+        </div>
+
+        <div v-if="!loading && filteredStaff.length === 0" class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          <h3>No staff members found</h3>
+          <p>There are no staff members matching your current filters.</p>
+        </div>
+
+        <div v-if="!loading && filteredStaff.length > 0" class="staff-grid">
+          <div v-for="staff in paginatedStaff" :key="staff.id" class="staff-card">
             
             <div class="card-header">
-              <div class="avatar-wrapper">
-                <img v-if="staff.avatar" :src="staff.avatar" :alt="staff.name" class="staff-avatar" />
-                <div v-else class="avatar-placeholder">{{ staff.initials }}</div>
-                <span class="status-dot" :class="staff.dotColor"></span>
-              </div>
+              <UserAvatar
+                :image-url="staff.avatar"
+                :name="staff.name"
+                :status-color="staff.dotColor.replace('bg-', '')"
+                size="md"
+              />
               
               <div class="staff-header-info">
                 <h3>{{ staff.name }}</h3>
@@ -175,21 +151,37 @@ const searchQuery = ref('')
           </div>
         </div>
 
-        <div class="pagination-section">
-          <span class="showing-text">Showing 1 to 6 of 124 results</span>
-          
+        <div v-if="filteredStaff.length > perPage" class="pagination-section">
+          <span class="showing-text">Showing {{ showingFrom }} to {{ showingTo }} of {{ filteredStaff.length }} results</span>
+
           <div class="pagination-controls">
-            <button class="page-btn nav-arr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
-            <button class="page-btn active">1</button>
-            <button class="page-btn">2</button>
-            <button class="page-btn">3</button>
-            <span class="page-dots">...</span>
-            <button class="page-btn">21</button>
-            <button class="page-btn nav-arr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+            <button class="page-btn nav-arr" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+            <button
+              v-for="page in totalPages"
+              :key="page"
+              class="page-btn"
+              :class="{ active: page === currentPage }"
+              @click="goToPage(page)"
+            >{{ page }}</button>
+            <button class="page-btn nav-arr" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
           </div>
         </div>
 
   </ManagerLayout>
+
+  <div v-if="showInviteModal" class="modal-overlay" @click.self="showInviteModal = false">
+    <div class="modal-box">
+      <h3>Invite New Worker</h3>
+      <p>Share this invite code with the worker. They'll use it during sign up to join your company.</p>
+      <div class="invite-code-display">
+        <code>{{ inviteCode }}</code>
+        <button class="copy-btn" @click="copyInviteCode">
+          {{ copied ? 'Copied!' : 'Copy' }}
+        </button>
+      </div>
+      <button class="btn btn-primary modal-close-btn" @click="showInviteModal = false">Done</button>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -540,4 +532,99 @@ const searchQuery = ref('')
   .page-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
   .pagination-section { flex-direction: column; gap: 1rem; }
 }
+
+/* Loading & Empty States */
+.loading-state, .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.empty-state svg {
+  margin-bottom: 1rem;
+  opacity: 0.8;
+}
+
+.empty-state h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-state p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+/* Invite Modal */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.modal-box {
+  background: #fff; border-radius: 16px; padding: 2rem;
+  max-width: 400px; width: 90%; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.modal-box h3 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.5rem; }
+.modal-box p { color: #6B7280; font-size: 0.9rem; margin: 0 0 1.5rem; }
+.invite-code-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background-color: #F3F4F6;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+.invite-code-display code {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--primary);
+}
+.copy-btn {
+  background-color: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.copy-btn:hover { opacity: 0.9; }
+.modal-close-btn { width: 100%; margin-top: 0; }
 </style>

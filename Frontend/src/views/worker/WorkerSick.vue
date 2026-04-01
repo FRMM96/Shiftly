@@ -1,35 +1,83 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
+import { useScheduleStore } from '../../stores/scheduleStore'
+import api from '../../services/api'
+import {
+  format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
+  eachDayOfInterval, isSameMonth, isSameDay, isToday,
+  addMonths, subMonths
+} from 'date-fns'
 
-// Mock Data
-const user = ref({
-  avatar: 'https://i.pravatar.cc/150?u=radix_worker_1'
-})
+const router = useRouter()
+const scheduleStore = useScheduleStore()
 
 const reason = ref('')
-const selectedDate = ref(5)
+const currentMonth = ref(new Date())
+const selectedDate = ref(new Date())
+const submitting = ref(false)
+const showModal = ref(false)
+const modalSuccess = ref(false)
+const modalMessage = ref('')
+
+const monthLabel = computed(() => format(currentMonth.value, 'MMMM yyyy'))
+const selectedDateLabel = computed(() => format(selectedDate.value, 'EEEE, MMM d'))
+const selectedDateStr = computed(() => format(selectedDate.value, 'yyyy-MM-dd'))
 
 const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-const calendarDays = [
-  null, null, null, 1, 2, 3, 4,
-  5, 6, 7, 8, 9, 10, 11,
-  12, 13, 14
-]
 
-const handleBack = () => {
-  console.log('Navigate back to shifts')
+const calendarDays = computed(() => {
+  const monthStart = startOfMonth(currentMonth.value)
+  const monthEnd = endOfMonth(currentMonth.value)
+  const calStart = startOfWeek(monthStart, { weekStartsOn: 0 })
+  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 0 })
+  return eachDayOfInterval({ start: calStart, end: calEnd }).map(day => ({
+    day: isSameMonth(day, currentMonth.value) ? day.getDate() : null,
+    fullDate: day,
+    isSelected: isSameDay(day, selectedDate.value),
+    isToday: isToday(day)
+  }))
+})
+
+const selectDay = (d) => {
+  if (d.day) selectedDate.value = d.fullDate
 }
 
-const submitReport = () => {
-  if (confirm(`Submit sick report for Thursday, Oct 5?\n\nReason: ${reason.value || 'None provided'}`)) {
-    console.log('Report submitted')
+const goPrev = () => { currentMonth.value = subMonths(currentMonth.value, 1) }
+const goNext = () => { currentMonth.value = addMonths(currentMonth.value, 1) }
+
+const handleBack = () => { router.push('/worker') }
+
+const submitReport = async () => {
+  submitting.value = true
+  try {
+    await api.post('/sick', {
+      date: selectedDateStr.value,
+      reason: reason.value || null
+    })
+    modalSuccess.value = true
+    modalMessage.value = 'Sick report submitted. Your manager has been notified.'
+  } catch (e) {
+    modalSuccess.value = false
+    modalMessage.value = e?.response?.data?.message || 'Failed to submit report.'
+  } finally {
+    submitting.value = false
+    showModal.value = true
   }
 }
 
-const cancelReport = () => {
-  console.log('Cancelled')
+const cancelReport = () => { router.push('/worker') }
+
+const closeModal = () => {
+  showModal.value = false
+  if (modalSuccess.value) router.push('/worker')
 }
+
+onMounted(() => {
+  scheduleStore.fetchMySchedule().catch(() => {})
+})
 </script>
 
 <template>
@@ -57,28 +105,30 @@ const cancelReport = () => {
 
             <div class="calendar-wrapper">
               <div class="month-nav">
-                <button class="nav-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
-                <h3>October 2023</h3>
-                <button class="nav-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+                <button class="nav-arrow" @click="goPrev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                <h3>{{ monthLabel }}</h3>
+                <button class="nav-arrow" @click="goNext"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
               </div>
 
               <div class="calendar-grid">
-                <div class="weekday" v-for="day in weekdays" :key="day">{{ day }}</div>
-                
-                <div 
-                  v-for="(day, index) in calendarDays" 
+                <div class="weekday" v-for="wd in weekdays" :key="wd">{{ wd }}</div>
+
+                <div
+                  v-for="(d, index) in calendarDays"
                   :key="index"
                   class="day-cell"
-                  :class="{ 'active': day === selectedDate, 'empty': !day }"
+                  :class="{ 'active': d.isSelected, 'empty': !d.day }"
+                  @click="selectDay(d)"
+                  :style="d.day ? 'cursor:pointer' : ''"
                 >
-                  <span v-if="day">{{ day }}</span>
+                  <span v-if="d.day">{{ d.day }}</span>
                 </div>
               </div>
             </div>
 
             <div class="info-box blue-info">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-              <span>Reporting for: <strong>Thursday, Oct 5</strong></span>
+              <span>Reporting for: <strong>{{ selectedDateLabel }}</strong></span>
             </div>
           </div>
 
@@ -132,25 +182,18 @@ const cancelReport = () => {
       </div>
     </div>
   </WorkerLayout>
+
+  <ConfirmModal
+    :is-open="showModal"
+    :title="modalSuccess ? 'Report Submitted!' : 'Error'"
+    :message="modalMessage"
+    :type="modalSuccess ? 'success' : 'danger'"
+    @close="closeModal"
+  />
 </template>
 
 <style scoped>
 /* --- Design Variables --- */
-:root {
-  --bg-main: #F4F7F9;
-  --card-bg: #FFFFFF;
-  --primary: #0B57D0; /* Deep primary blue */
-  --primary-hover: #0842A0;
-  --primary-light: #E8F0FE;
-  
-  --text-dark: #111827;
-  --text-muted: #6B7280;
-  --border: #E5E7EB;
-  
-  --warning-bg: #FFF8E1;
-  --warning-border: #FDE68A;
-  --warning-text: #B45309;
-}
 
 /* --- Main Content --- */
 .main-content {
@@ -428,8 +471,6 @@ const cancelReport = () => {
 .btn-outline:hover {
   background-color: var(--bg-main);
 }
-
-
 
 /* --- Responsive Adjustments --- */
 @media (max-width: 768px) {

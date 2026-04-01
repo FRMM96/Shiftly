@@ -4,11 +4,9 @@ import { ref } from 'vue'
 const email = ref('john@example.com')
 
 const openEmailApp = () => {
-  console.log('Opening email app...')
 }
 
 const resendEmail = () => {
-  console.log('Resending email...')
 }
 </script>
 

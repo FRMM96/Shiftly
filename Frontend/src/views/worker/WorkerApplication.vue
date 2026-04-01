@@ -1,50 +1,73 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
+import api from '../../services/api'
 
-// --- Mock Data matching the image ---
-const pendingApps = ref([
-  {
-    id: 1,
-    title: 'Frontend Developer - Radix Core',
-    date: 'Oct 12, 2023',
-    refId: 'RX-992',
-    status: 'PENDING REVIEW',
+const router = useRouter()
+const activeTab = ref('pending')
+const applications = ref([])
+const loading = ref(false)
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    // Fetch marketplace shifts to get the user's applications
+    const res = await api.get('/marketplace/shifts')
+    const shifts = res.data.shifts || []
+    // Collect all applications from shifts where user has applied
+    const allApps = []
+    for (const shift of shifts) {
+      if (Array.isArray(shift.applications)) {
+        for (const app of shift.applications) {
+          allApps.push({
+            id: app.id,
+            title: shift.roleName || 'Shift',
+            business: shift.business,
+            date: new Date(app.appliedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            refId: app.id.substring(0, 6).toUpperCase(),
+            status: app.status,
+            shiftId: shift.id
+          })
+        }
+      }
+    }
+    applications.value = allApps
+  } catch (e) {
+    console.error('Failed to load applications:', e)
+  } finally {
+    loading.value = false
+  }
+})
+
+const pendingApps = computed(() =>
+  applications.value.filter(a => a.status === 'PENDING').map(a => ({
+    ...a,
+    statusLabel: 'PENDING REVIEW',
     statusType: 'warning-light',
     iconType: 'clock'
-  },
-  {
-    id: 2,
-    title: 'Senior UX Researcher - Design Systems',
-    date: 'Oct 10, 2023',
-    refId: 'RX-841',
-    status: 'INTERVIEW SCHEDULED',
-    statusType: 'warning-dark',
-    iconType: 'clock'
-  }
-])
+  }))
+)
 
-const approvedApps = ref([
-  {
-    id: 3,
-    title: 'DevOps Engineer - Infrastructure',
-    date: 'Oct 05, 2023',
-    status: 'APPROVED',
+const approvedApps = computed(() =>
+  applications.value.filter(a => a.status === 'ACCEPTED').map(a => ({
+    ...a,
+    statusLabel: 'APPROVED',
     statusType: 'success',
     iconType: 'check'
-  }
-])
+  }))
+)
 
-const deniedApps = ref([
-  {
-    id: 4,
-    title: 'Product Manager - Growth',
-    date: 'Sep 28, 2023',
-    status: 'DENIED',
+const deniedApps = computed(() =>
+  applications.value.filter(a => a.status === 'REJECTED').map(a => ({
+    ...a,
+    statusLabel: 'DENIED',
     statusType: 'danger',
     iconType: 'cross'
-  }
-])
+  }))
+)
+
+const goToMarketplace = () => router.push('/worker/marketplace')
 </script>
 
 <template>
@@ -78,15 +101,15 @@ const deniedApps = ref([
         <main class="content-area">
           
           <div class="tabs-container">
-            <button class="tab active">Pending (3)</button>
-            <button class="tab">Approved (12)</button>
-            <button class="tab">Denied (4)</button>
+            <button class="tab" :class="{ active: activeTab === 'pending' }" @click="activeTab = 'pending'">Pending ({{ pendingApps.length }})</button>
+            <button class="tab" :class="{ active: activeTab === 'approved' }" @click="activeTab = 'approved'">Approved ({{ approvedApps.length }})</button>
+            <button class="tab" :class="{ active: activeTab === 'denied' }" @click="activeTab = 'denied'">Denied ({{ deniedApps.length }})</button>
           </div>
 
           <div class="section-container">
             <div class="section-header">
               <h3>Recent Applications</h3>
-              <a href="#" class="new-app-link">
+              <a class="new-app-link" @click.prevent="goToMarketplace" style="cursor:pointer">
                 New Application
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               </a>
@@ -104,7 +127,7 @@ const deniedApps = ref([
                   </div>
                 </div>
                 <div class="card-right">
-                  <span class="status-badge" :class="'badge-' + app.statusType">{{ app.status }}</span>
+                  <span class="status-badge" :class="'badge-' + app.statusType">{{ app.statusLabel || app.status }}</span>
                   <svg class="chevron-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </div>
               </div>
@@ -128,7 +151,7 @@ const deniedApps = ref([
                   </div>
                 </div>
                 <div class="card-right">
-                  <span class="status-badge" :class="'badge-' + app.statusType">{{ app.status }}</span>
+                  <span class="status-badge" :class="'badge-' + app.statusType">{{ app.statusLabel || app.status }}</span>
                 </div>
               </div>
             </div>
@@ -151,7 +174,7 @@ const deniedApps = ref([
                   </div>
                 </div>
                 <div class="card-right">
-                  <span class="status-badge" :class="'badge-' + app.statusType">{{ app.status }}</span>
+                  <span class="status-badge" :class="'badge-' + app.statusType">{{ app.statusLabel || app.status }}</span>
                 </div>
               </div>
             </div>
@@ -168,28 +191,6 @@ const deniedApps = ref([
 
 <style scoped>
 /* --- Color Palette & Variables --- */
-:root {
-  --bg-outer: #F1F5F9;
-  --bg-inner: #FFFFFF;
-  --bg-hover: #F8FAFC;
-  --bg-active-nav: #EFF6FF;
-  
-  --primary: #0047FF;
-  --text-dark: #0F172A;
-  --text-muted: #64748B;
-  --border: #E2E8F0;
-  
-  --warn-light-bg: #FFEDD5;
-  --warn-light-text: #EA580C;
-  --warn-dark-bg: #FEF3C7;
-  --warn-dark-text: #D97706;
-  
-  --success-bg: #DCFCE3;
-  --success-text: #16A34A;
-  
-  --danger-bg: #FEE2E2;
-  --danger-text: #DC2626;
-}
 
 /* --- Layout Wrappers --- */
 .page-wrapper {

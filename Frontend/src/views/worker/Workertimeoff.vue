@@ -1,36 +1,61 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
+import api from '../../services/api'
 
-// Form State
-const startDate = ref('05/11/2023')
-const endDate = ref('10/11/2023')
+const router = useRouter()
+const todayStr = new Date().toISOString().slice(0, 10)
+
+const startDate = ref(todayStr)
+const endDate = ref(todayStr)
 const leaveType = ref('')
 const notes = ref('')
+const submitting = ref(false)
+const showModal = ref(false)
+const modalSuccess = ref(false)
+const modalMessage = ref('')
 
-const handleDragOver = (e) => {
-  e.preventDefault()
-  // Add drag styling if needed
-}
+const handleDragOver = (e) => { e.preventDefault() }
+const handleDrop = (e) => { e.preventDefault() }
 
-const handleDrop = (e) => {
-  e.preventDefault()
-  // Handle file drop
-  console.log('Files dropped')
-}
+const submitRequest = async () => {
+  if (!startDate.value || !endDate.value) {
+    modalSuccess.value = false
+    modalMessage.value = 'Please select start and end dates.'
+    showModal.value = true
+    return
+  }
 
-const submitRequest = () => {
-  console.log('Submitting request...', {
-    startDate: startDate.value,
-    endDate: endDate.value,
-    leaveType: leaveType.value,
-    notes: notes.value
-  })
-  alert('Time off request submitted!')
+  const typeMap = { annual: 'ANNUAL', sick: 'SICK', personal: 'PERSONAL' }
+
+  submitting.value = true
+  try {
+    await api.post('/timeoff', {
+      startDate: startDate.value,
+      endDate: endDate.value,
+      type: typeMap[leaveType.value] || 'ANNUAL',
+      notes: notes.value || null
+    })
+    modalSuccess.value = true
+    modalMessage.value = 'Time off request submitted successfully! Your manager will review it.'
+  } catch (e) {
+    modalSuccess.value = false
+    modalMessage.value = e?.response?.data?.message || 'Failed to submit request. Please try again.'
+  } finally {
+    submitting.value = false
+    showModal.value = true
+  }
 }
 
 const cancelRequest = () => {
-  console.log('Cancelled')
+  router.push('/worker')
+}
+
+const closeModal = () => {
+  showModal.value = false
+  if (modalSuccess.value) router.push('/worker')
 }
 </script>
 
@@ -57,14 +82,14 @@ const cancelRequest = () => {
                 <label>Start Date</label>
                 <div class="input-with-icon">
                   <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                  <input type="text" v-model="startDate" />
+                  <input type="date" v-model="startDate" />
                 </div>
               </div>
               <div class="form-group">
                 <label>End Date</label>
                 <div class="input-with-icon">
                   <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                  <input type="text" v-model="endDate" />
+                  <input type="date" v-model="endDate" />
                 </div>
               </div>
             </div>
@@ -119,30 +144,12 @@ const cancelRequest = () => {
             </div>
             
             <div class="balance-header">
-              <span class="label">AVAILABLE BALANCE</span>
-              <h2>12.5 Days</h2>
+              <span class="label">TIME OFF</span>
+              <h2>Request Time Off</h2>
             </div>
 
             <div class="balance-stats">
-              <div class="stat-row">
-                <div class="stat-info">
-                  <span>Annual Leave</span>
-                  <strong>10 Days</strong>
-                </div>
-                <div class="progress-bar">
-                  <div class="progress-fill" style="width: 70%;"></div>
-                </div>
-              </div>
-              
-              <div class="stat-row">
-                <div class="stat-info">
-                  <span>Sick Leave</span>
-                  <strong>2.5 Days</strong>
-                </div>
-                <div class="progress-bar">
-                  <div class="progress-fill" style="width: 25%;"></div>
-                </div>
-              </div>
+              <p style="color: var(--text-muted); font-size: 0.9rem;">Select dates and type below to submit your request. Your manager will review it promptly.</p>
             </div>
           </div>
 
@@ -153,12 +160,8 @@ const cancelRequest = () => {
             </div>
             <ul class="coverage-list">
               <li>
-                <span class="dot dot-orange"></span>
-                <p><strong>Sarah M.</strong> is away Nov 4-6</p>
-              </li>
-              <li>
                 <span class="dot dot-green"></span>
-                <p>Optimal coverage for requested dates</p>
+                <p>Check team calendar for coverage before requesting time off.</p>
               </li>
             </ul>
             <a href="#" class="calendar-link">
@@ -182,24 +185,18 @@ const cancelRequest = () => {
       </div>
     </div>
   </WorkerLayout>
+
+  <ConfirmModal
+    :is-open="showModal"
+    :title="modalSuccess ? 'Request Submitted!' : 'Error'"
+    :message="modalMessage"
+    :type="modalSuccess ? 'success' : 'danger'"
+    @close="closeModal"
+  />
 </template>
 
 <style scoped>
 /* --- Design Variables --- */
-:root {
-  --bg-main: #FAFAFB; /* Very light cool grey */
-  --bg-card: #FFFFFF;
-  --primary: #0052CC; /* Royal Blue */
-  --primary-hover: #0043A6;
-  
-  --text-dark: #0F172A;
-  --text-body: #334155;
-  --text-muted: #64748B;
-  --border: #E2E8F0;
-  
-  --dot-orange: #F97316;
-  --dot-green: #10B981;
-}
 
 /* --- Main Content --- */
 .main-content {
@@ -602,8 +599,6 @@ textarea::placeholder {
   color: var(--text-muted);
   line-height: 1.5;
 }
-
-
 
 /* --- Responsive --- */
 @media (max-width: 900px) {

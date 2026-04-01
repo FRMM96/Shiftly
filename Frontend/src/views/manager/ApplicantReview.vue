@@ -2,31 +2,33 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
+import TabBar from '../../components/shared/TabBar.vue'
+import UserAvatar from '../../components/shared/UserAvatar.vue'
+import LoadMoreButton from '../../components/shared/LoadMoreButton.vue'
 import { useShiftStore } from '../../stores/shiftStore'
 
 const router = useRouter()
 const shiftStore = useShiftStore()
 
 // --- State ---
-const assigning = ref(false)
+const actionLoading = ref({}) // { [applicantId]: 'approve'|'reject' }
 const showModal = ref(false)
 const modalSuccess = ref(false)
 const modalMessage = ref('')
+const modalTitle = ref('')
+const activeTab = ref('pending')
 
-onMounted(() => {
-  shiftStore.fetchManagerShifts().catch(() => {})
-})
-
-const currentUser = ref({
-  name: 'Alex Thompson',
-  role: 'REGIONAL ADMIN',
-  avatar: 'https://i.pravatar.cc/150?u=alex_thompson'
-})
-
-// Bind to store with fallback to mock data
+// Reactive local state to store full applicant lists per shift ID
+const shiftApplicants = ref({})
 const shiftsRequiringAttention = computed(() => {
-  if (shiftStore.openShifts.length > 0) {
-    return shiftStore.openShifts.map((s, index) => ({
+  if (activeTab.value !== 'pending') return []
+  
+  return shiftStore.openShifts.map((s, index) => {
+    // Check if we fetched the full applicants list for this shift
+    const applicantsList = shiftApplicants.value[s.id] || []
+    
+    return {
       id: s.id,
       title: `${s.role || s.roleName} - ${s.business}`,
       location: s.business,
@@ -34,59 +36,84 @@ const shiftsRequiringAttention = computed(() => {
       urgency: index === 0 ? 'High Urgency' : null,
       applicantCount: Array.isArray(s.applications) ? s.applications.length : 0,
       iconColor: index % 2 === 0 ? 'blue' : 'green',
-      applicants: Array.isArray(s.applications) ? s.applications.map(app => ({
+      applicants: applicantsList.map(app => ({
         id: app.id,
-        name: app.userName || app.username || 'Applicant',
-        rating: app.rating || '4.5',
+        name: app.user?.username || app.user?.name || app.name || 'Applicant',
+        rating: '4.5', // Mocked rating
         role: s.role || s.roleName,
-        time: app.appliedAt ? `Applied ${app.appliedAt}` : 'Applied recently',
-        avatar: app.avatar || `https://i.pravatar.cc/150?u=${app.id}`
-      })) : []
-    }))
-  }
-
-  // Fallback mock data
-  return [
-    {
-      id: 1,
-      title: 'Morning Shift - ICU Nursing',
-      location: 'Radix General Hospital',
-      date: 'Oct 24, 07:00 - 15:00',
-      urgency: 'High Urgency',
-      applicantCount: 5,
-      iconColor: 'blue',
-      applicants: [
-        { id: 101, name: 'Dr. Sarah Jenkins', rating: '4.9', role: 'RN Specialist', time: 'Applied 2h ago', avatar: 'https://i.pravatar.cc/150?u=sarah_j_doc' },
-        { id: 102, name: 'Emily Chen', rating: '4.7', role: 'General Nursing', time: 'Applied 5h ago', avatar: 'https://i.pravatar.cc/150?u=emily_chen' }
-      ]
-    },
-    {
-      id: 2,
-      title: 'Night Shift - Emergency Room',
-      location: 'City Clinic West',
-      date: 'Oct 25, 22:00 - 06:00',
-      urgency: null,
-      applicantCount: 3,
-      iconColor: 'green',
-      applicants: [
-        { id: 103, name: 'Marcus Thorne', rating: '5.0', role: 'ER Specialist', time: 'Applied yesterday', avatar: 'https://i.pravatar.cc/150?u=marcus_thorne' }
-      ]
+        time: app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : 'Applied recently',
+        avatar: `https://i.pravatar.cc/150?u=${app.user?.id || app.id}`
+      }))
     }
-  ]
+  })
 })
 
+const fetchAllApplicants = async () => {
+  for (const shift of shiftStore.openShifts) {
+    if (Array.isArray(shift.applications) && shift.applications.length > 0) {
+      try {
+        const applicants = await shiftStore.fetchApplicants(shift.id)
+        shiftApplicants.value[shift.id] = applicants
+      } catch (err) {
+        console.error(`Failed to fetch applicants for shift ${shift.id}:`, err)
+      }
+    }
+  }
+}
+
+onMounted(async () => {
+  await shiftStore.fetchManagerShifts().catch(() => {})
+  await fetchAllApplicants()
+})
+
+const isApproving = (id) => actionLoading.value[id] === 'approve'
+const isRejecting = (id) => actionLoading.value[id] === 'reject'
+const isActing = (id) => !!actionLoading.value[id]
+
 const handleApprove = async (shift, applicant) => {
-  if (!confirm(`Are you sure you want to approve ${applicant.name} for this shift?`)) return
-  assigning.value = true
+  if (!confirm(`Approve ${applicant.name} for this shift?\n\nThis will automatically reject all other pending applicants.`)) return
+  actionLoading.value = { ...actionLoading.value, [applicant.id]: 'approve' }
   try {
-    await shiftStore.assignApplicant(shift.id, applicant.id)
+    await shiftStore.approveApplicant(shift.id, applicant.id)
+    // Remove all applicants for this shift from local state (shift is now ACTIVE)
+    shiftApplicants.value[shift.id] = []
     modalSuccess.value = true
-    modalMessage.value = `${applicant.name} has been approved and assigned!`
+    modalTitle.value = 'Approved!'
+    modalMessage.value = `${applicant.name} has been approved and assigned to the shift.`
   } catch (e) {
     modalSuccess.value = false
+    modalTitle.value = 'Error'
     modalMessage.value = e?.message || 'Failed to approve applicant. Please try again.'
   } finally {
-    assigning.value = false
+    const updated = { ...actionLoading.value }
+    delete updated[applicant.id]
+    actionLoading.value = updated
+    showModal.value = true
+  }
+}
+
+const handleDecline = async (shift, applicant) => {
+  if (!confirm(`Are you sure you want to decline ${applicant.name}?`)) return
+  actionLoading.value = { ...actionLoading.value, [applicant.id]: 'reject' }
+  try {
+    await shiftStore.rejectApplicant(shift.id, applicant.id)
+    // Remove this applicant from local list
+    if (shiftApplicants.value[shift.id]) {
+      shiftApplicants.value[shift.id] = shiftApplicants.value[shift.id].filter(
+        a => a.id !== applicant.id
+      )
+    }
+    modalSuccess.value = true
+    modalTitle.value = 'Declined'
+    modalMessage.value = `${applicant.name} has been removed from the applicant list.`
+  } catch (e) {
+    modalSuccess.value = false
+    modalTitle.value = 'Error'
+    modalMessage.value = e?.message || 'Failed to decline applicant. Please try again.'
+  } finally {
+    const updated = { ...actionLoading.value }
+    delete updated[applicant.id]
+    actionLoading.value = updated
     showModal.value = true
   }
 }
@@ -94,6 +121,14 @@ const handleApprove = async (shift, applicant) => {
 const closeModal = () => {
   showModal.value = false
 }
+
+const pendingCount = computed(() => {
+  let count = 0
+  for (const s of shiftStore.openShifts) {
+    if (Array.isArray(s.applications)) count += s.applications.length
+  }
+  return count
+})
 
 const handleViewProfile = (applicantId) => {
   router.push(`/manager/applicants/${applicantId}`)
@@ -108,20 +143,26 @@ const handleViewProfile = (applicantId) => {
           <p>Review and approve healthcare professionals for open shifts.</p>
         </div>
 
-        <div class="tabs-container">
-          <button class="tab active">
-            Pending <span class="tab-badge">12</span>
-          </button>
-          <button class="tab">Reviewed</button>
-          <button class="tab">Shortlisted</button>
+        <TabBar
+          :tabs="[
+            { value: 'pending', label: 'Pending', badge: pendingCount },
+            { value: 'reviewed', label: 'Reviewed' },
+            { value: 'shortlisted', label: 'Shortlisted' }
+          ]"
+          v-model="activeTab"
+          style="margin-bottom: 1.5rem;"
+        />
+
+        <div v-if="activeTab !== 'pending'" class="empty-tab-state">
+          <p>No {{ activeTab }} applicants yet.</p>
         </div>
 
-        <div class="attention-header">
+        <div v-if="activeTab === 'pending'" class="attention-header">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0047FF" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
           <h2>Shifts Requiring Attention</h2>
         </div>
 
-        <div class="shifts-list">
+        <div v-if="activeTab === 'pending'" class="shifts-list">
           <div v-for="shift in shiftsRequiringAttention" :key="shift.id" class="shift-group-card">
             
             <div class="shift-header">
@@ -145,7 +186,7 @@ const handleViewProfile = (applicantId) => {
               <div v-for="app in shift.applicants" :key="app.id" class="applicant-row">
                 
                 <div class="applicant-info">
-                  <img :src="app.avatar" :alt="app.name" class="applicant-avatar" />
+                  <UserAvatar :image-url="app.avatar" :name="app.name" size="md" />
                   <div class="applicant-details">
                     <h4>{{ app.name }}</h4>
                     <div class="applicant-meta">
@@ -163,7 +204,24 @@ const handleViewProfile = (applicantId) => {
 
                 <div class="applicant-actions">
                   <button class="btn btn-outline" @click="handleViewProfile(app.id)">View Profile</button>
-                  <button class="btn btn-primary" :disabled="assigning" @click="handleApprove(shift, app)">{{ assigning ? 'Approving...' : 'Approve' }}</button>
+                  <button
+                    class="btn btn-decline"
+                    :disabled="isActing(app.id)"
+                    @click="handleDecline(shift, app)"
+                  >
+                    <svg v-if="!isRejecting(app.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <svg v-else class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10" /></svg>
+                    {{ isRejecting(app.id) ? 'Declining...' : 'Decline' }}
+                  </button>
+                  <button
+                    class="btn btn-primary"
+                    :disabled="isActing(app.id)"
+                    @click="handleApprove(shift, app)"
+                  >
+                    <svg v-if="!isApproving(app.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <svg v-else class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10" /></svg>
+                    {{ isApproving(app.id) ? 'Approving...' : 'Approve' }}
+                  </button>
                 </div>
 
               </div>
@@ -172,28 +230,17 @@ const handleViewProfile = (applicantId) => {
           </div>
         </div>
 
-        <div class="load-more-container">
-          <button class="btn-load-more">Load More Shifts</button>
-        </div>
+        <LoadMoreButton v-if="activeTab === 'pending'" text="Load More Shifts" />
 
   </ManagerLayout>
 
-  <!-- Approve Result Modal -->
-  <Teleport to="body">
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-box">
-        <div :class="modalSuccess ? 'modal-success' : 'modal-error'">
-          <div class="modal-icon" :class="modalSuccess ? 'success-icon' : 'error-icon'">
-            <svg v-if="modalSuccess" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-          </div>
-          <h3>{{ modalSuccess ? 'Approved!' : 'Error' }}</h3>
-          <p>{{ modalMessage }}</p>
-        </div>
-        <button class="btn btn-primary modal-close-btn" @click="closeModal">Got it</button>
-      </div>
-    </div>
-  </Teleport>
+  <ConfirmModal
+    :is-open="showModal"
+    :title="modalTitle"
+    :message="modalMessage"
+    :type="modalSuccess ? 'success' : 'danger'"
+    @close="closeModal"
+  />
 </template>
 
 <style scoped>
@@ -414,6 +461,9 @@ const handleViewProfile = (applicantId) => {
   background-color: var(--primary);
   color: #FFFFFF;
   border: 1px solid var(--primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .btn-primary:hover {
@@ -429,6 +479,34 @@ const handleViewProfile = (applicantId) => {
 
 .btn-outline:hover {
   background-color: #F8FAFC;
+}
+
+.btn-decline {
+  background-color: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #DC2626;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-decline:hover {
+  background-color: #FEE2E2;
+}
+
+.btn-decline:disabled,
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@keyframes spin-anim {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin-anim 0.8s linear infinite;
+  display: inline-block;
 }
 
 /* Load More Button */
@@ -487,4 +565,14 @@ const handleViewProfile = (applicantId) => {
 .modal-box h3 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.5rem; }
 .modal-box p { color: #6B7280; font-size: 0.95rem; margin: 0 0 1.5rem; }
 .modal-close-btn { width: 100%; }
+
+.empty-tab-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
 </style>

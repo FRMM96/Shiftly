@@ -1,37 +1,84 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
+import { useUserStore } from '../../stores/userStore'
+import api from '../../services/api'
 
-// --- Mock Data ---
-const user = ref({
-  name: 'Alex Rivera',
-  role: 'Senior Operations Manager',
-  location: 'Radix HQ - San Francisco, CA',
-  avatar: 'https://i.pravatar.cc/150?u=alex_rivera_manager',
-  company: 'Radix Industries Ltd.',
-  department: 'Global Operations',
-  employeeId: 'RX - 94621',
-  joinDate: 'March 12, 2019'
+const router = useRouter()
+const userStore = useUserStore()
+
+const editForm = ref({
+  department: '',
+  location: '',
+  phone: ''
 })
 
-// Notification States
+const user = computed(() => {
+  const u = userStore.user
+  if (!u) return { name: '', role: '', location: '', avatar: '', company: '', department: '', employeeId: '', joinDate: '' }
+  return {
+    name: u.username || 'Manager',
+    role: u.role === 'BOSS' ? 'Manager' : u.role,
+    location: u.location || 'Not set',
+    avatar: `https://i.pravatar.cc/150?u=${u.id}`,
+    company: u.company?.name || 'N/A',
+    department: u.department || 'General',
+    phone: u.phone || '',
+    employeeId: u.id ? u.id.substring(0, 8).toUpperCase() : 'N/A',
+    joinDate: new Date(u.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  }
+})
+
+const isEditing = ref(false)
+
+const startEditing = () => {
+  editForm.value.department = userStore.user?.department || ''
+  editForm.value.location = userStore.user?.location || ''
+  editForm.value.phone = userStore.user?.phone || ''
+  isEditing.value = true
+}
+
 const settings = ref({
   emailAlerts: true,
   systemStatus: true,
   directMessages: false
 })
 
-const handleSave = () => {
-  console.log('Saving settings:', settings.value)
-  alert('Changes saved successfully!')
+const saving = ref(false)
+const showModal = ref(false)
+const modalSuccess = ref(false)
+const modalMessage = ref('')
+
+const handleSave = async () => {
+  saving.value = true
+  try {
+    const res = await api.patch('/profile', {
+      department: editForm.value.department,
+      location: editForm.value.location,
+      phone: editForm.value.phone
+    })
+    userStore.user = { ...userStore.user, ...res.data.user }
+    isEditing.value = false
+    modalSuccess.value = true
+    modalMessage.value = 'Changes saved successfully!'
+  } catch (e) {
+    modalSuccess.value = false
+    modalMessage.value = e?.response?.data?.message || 'Failed to save changes.'
+  } finally {
+    saving.value = false
+    showModal.value = true
+  }
 }
 
 const handleChangePassword = () => {
-  console.log('Change password clicked')
+  router.push('/change-password')
 }
 
 const handleLogout = () => {
-  console.log('Logout clicked')
+  userStore.logout()
+  router.push('/login')
 }
 </script>
 
@@ -41,7 +88,7 @@ const handleLogout = () => {
       
       <div class="card profile-header">
         <div class="avatar-container">
-          <img :src="user.avatar" alt="Alex Rivera" class="large-avatar" />
+          <img :src="user.avatar" :alt="user.name" class="large-avatar" />
           <button class="edit-avatar-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
           </button>
@@ -69,7 +116,18 @@ const handleLogout = () => {
             </div>
             <div class="detail-row">
               <span class="detail-label">Department</span>
-              <span class="detail-value">{{ user.department }}</span>
+              <input v-if="isEditing" v-model="editForm.department" class="edit-input" placeholder="Department" />
+              <span v-else class="detail-value">{{ user.department }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Location</span>
+              <input v-if="isEditing" v-model="editForm.location" class="edit-input" placeholder="Location" />
+              <span v-else class="detail-value">{{ user.location }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Phone</span>
+              <input v-if="isEditing" v-model="editForm.phone" class="edit-input" placeholder="Phone" />
+              <span v-else class="detail-value">{{ user.phone || 'Not set' }}</span>
             </div>
             <div class="detail-row">
               <span class="detail-label">Employee ID</span>
@@ -129,9 +187,13 @@ const handleLogout = () => {
       </div>
 
       <div class="actions-grid">
-        <button class="btn btn-primary" @click="handleSave">
+        <button v-if="isEditing" class="btn btn-primary" @click="handleSave" :disabled="saving">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-          Save All Changes
+          {{ saving ? 'Saving...' : 'Save Changes' }}
+        </button>
+        <button v-else class="btn btn-primary" @click="startEditing">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          Edit Profile
         </button>
         <button class="btn btn-outline" @click="handleChangePassword">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="2" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="19.07" y2="4.93"></line></svg>
@@ -144,28 +206,23 @@ const handleLogout = () => {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
           Log Out from Radix Manager
         </button>
-        <p class="login-info">Last login: October 24, 2023 at 08:42 AM from 192.168.1.45</p>
+        <p class="login-info">Signed in as {{ userStore.user?.email }}</p>
       </div>
 
     </div>
   </ManagerLayout>
+
+  <ConfirmModal
+    :is-open="showModal"
+    :title="modalSuccess ? 'Saved!' : 'Error'"
+    :message="modalMessage"
+    :type="modalSuccess ? 'success' : 'danger'"
+    @close="showModal = false"
+  />
 </template>
 
 <style scoped>
 /* --- Design Variables --- */
-:root {
-  --primary: #0B57D0;
-  --primary-hover: #0842A0;
-  --bg-app: #F8FAFC;
-  --bg-card: #FFFFFF;
-  --text-dark: #111827;
-  --text-muted: #6B7280;
-  --border: #E5E7EB;
-  
-  --danger-bg: #FEF2F2;
-  --danger-text: #DC2626;
-  --danger-border: #FCA5A5;
-}
 
 /* --- Main Content --- */
 .main-content {
@@ -297,6 +354,18 @@ const handleLogout = () => {
   font-size: 0.9rem;
   color: var(--text-dark);
 }
+
+.edit-input {
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  width: 140px;
+  text-align: right;
+}
+.edit-input:focus { border-color: var(--primary); }
 
 /* Toggles List */
 .toggles-list {
@@ -437,8 +506,6 @@ input:checked + .slider:before {
   color: #9CA3AF;
   margin: 0;
 }
-
-
 
 /* --- Responsive Adjustments --- */
 @media (max-width: 768px) {

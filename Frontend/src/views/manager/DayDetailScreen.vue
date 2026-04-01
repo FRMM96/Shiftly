@@ -1,66 +1,78 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
+import { useShiftStore } from '../../stores/shiftStore'
+import { format, parseISO } from 'date-fns'
 
-// --- Mock Data ---
-const stats = ref({
-  totalHours: '192.5',
-  laborCost: '$4,280',
-  onBreak: '3',
-  openRoles: '2'
+const route = useRoute()
+const shiftStore = useShiftStore()
+
+const dateParam = computed(() => route.params.date || format(new Date(), 'yyyy-MM-dd'))
+const formattedDate = computed(() => {
+  try { return format(parseISO(dateParam.value), 'EEEE, MMM d') }
+  catch { return dateParam.value }
 })
 
-const morningShift = ref([
-  {
-    id: 1,
-    name: 'Alex Rivera',
-    role: 'SUPERVISOR',
-    location: 'Site Area A • Floor 4',
-    time: '08:00 - 16:00',
-    status: 'active',
-    statusColor: 'bg-green-500',
-    avatar: 'https://i.pravatar.cc/150?u=alex_rivera',
-    showIcons: true
-  },
-  {
-    id: 2,
-    name: 'Jordan Smith',
-    role: 'ENGINEER',
-    location: 'Compliance Check • Section 2',
-    time: '08:00 - 16:00',
-    status: 'break',
-    statusText: 'On Break',
-    statusColor: 'bg-orange-500',
-    avatar: 'https://i.pravatar.cc/150?u=jordan_smith',
-    showIcons: false
-  },
-  {
-    id: 3,
-    name: 'Sarah Connor',
-    role: 'LOGISTICS',
-    location: 'Receiving Dock • North',
-    time: '09:00 - 17:00',
-    status: 'active',
-    statusColor: 'bg-green-500',
-    avatar: 'https://i.pravatar.cc/150?u=sarah_connor',
-    showIcons: true
-  }
-])
+onMounted(() => {
+  shiftStore.fetchManagerShifts().catch(() => {})
+})
 
-const eveningShift = ref([
-  {
-    id: 4,
-    name: 'Marcus Wu',
-    role: 'SECURITY',
-    location: 'Main Entrance • Night Watch',
-    time: '16:00 - 00:00',
-    status: 'not_started',
-    statusText: 'NOT STARTED',
-    statusColor: 'bg-gray-400',
-    avatar: 'https://i.pravatar.cc/150?u=marcus_wu',
-    showIcons: false
+const dayShifts = computed(() =>
+  shiftStore.shifts.filter(s => s.date === dateParam.value)
+)
+
+const morningShift = computed(() =>
+  dayShifts.value
+    .filter(s => { const h = parseInt(s.startTime || '12', 10); return h < 12 })
+    .map(s => ({
+      id: s.id,
+      name: s.workerName || s.worker?.username || 'Unassigned',
+      role: (s.roleName || s.role || '').toUpperCase(),
+      location: s.business || 'TBD',
+      time: `${s.startTime || '?'} - ${s.endTime || '?'}`,
+      status: s.status === 'ACTIVE' ? 'active' : 'not_started',
+      statusColor: s.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-400',
+      statusText: s.status === 'ACTIVE' ? '' : s.status,
+      avatar: `https://i.pravatar.cc/150?u=${s.workerId || s.id}`,
+      showIcons: s.status === 'ACTIVE'
+    }))
+)
+
+const eveningShift = computed(() =>
+  dayShifts.value
+    .filter(s => { const h = parseInt(s.startTime || '12', 10); return h >= 12 })
+    .map(s => ({
+      id: s.id,
+      name: s.workerName || s.worker?.username || 'Unassigned',
+      role: (s.roleName || s.role || '').toUpperCase(),
+      location: s.business || 'TBD',
+      time: `${s.startTime || '?'} - ${s.endTime || '?'}`,
+      status: s.status === 'ACTIVE' ? 'active' : 'not_started',
+      statusColor: s.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-400',
+      statusText: s.status === 'ACTIVE' ? '' : s.status,
+      avatar: `https://i.pravatar.cc/150?u=${s.workerId || s.id}`,
+      showIcons: s.status === 'ACTIVE'
+    }))
+)
+
+const stats = computed(() => {
+  let totalHours = 0
+  for (const s of dayShifts.value) {
+    if (s.startTime && s.endTime) {
+      const [sh, sm] = s.startTime.split(':').map(Number)
+      const [eh, em] = s.endTime.split(':').map(Number)
+      totalHours += (eh + em / 60) - (sh + sm / 60)
+    }
   }
-])
+  const openRoles = dayShifts.value.filter(s => s.status === 'OPEN').length
+  return {
+    totalHours: totalHours.toFixed(1),
+    laborCost: '—',
+    onBreak: '0',
+    openRoles: String(openRoles)
+  }
+})
 </script>
 
 <template>
@@ -72,7 +84,7 @@ const eveningShift = ref([
           <div class="calendar-icon-bg">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
           </div>
-          <h1 class="date-title">Tuesday, Oct 24</h1>
+          <h1 class="date-title">{{ formattedDate }}</h1>
         </div>
         <nav class="nav-tabs">
           <a href="#" class="nav-tab active">Roster</a>
@@ -97,9 +109,9 @@ const eveningShift = ref([
       
       <div class="card stats-card">
         <div class="stats-tabs">
-          <button class="stat-tab active">All Workers (24)</button>
-          <button class="stat-tab">Morning Shift (12)</button>
-          <button class="stat-tab">Evening Shift (12)</button>
+          <button class="stat-tab active">All Workers ({{ dayShifts.length }})</button>
+          <button class="stat-tab">Morning Shift ({{ morningShift.length }})</button>
+          <button class="stat-tab">Evening Shift ({{ eveningShift.length }})</button>
         </div>
         
         <div class="stats-grid">
@@ -224,25 +236,6 @@ const eveningShift = ref([
 
 <style scoped>
 /* --- Variables --- */
-:root {
-  --primary: #2563EB;
-  --primary-hover: #1D4ED8;
-  --primary-light: #EFF6FF;
-  --primary-border: #BFDBFE;
-  
-  --bg-main: #F8FAFC;
-  --bg-card: #FFFFFF;
-  
-  --text-dark: #0F172A;
-  --text-body: #334155;
-  --text-muted: #64748B;
-  
-  --border: #E2E8F0;
-  
-  --color-green: #10B981;
-  --color-orange: #F59E0B;
-  --color-gray: #9CA3AF;
-}
 
 /* --- Page Header --- */
 .page-header {

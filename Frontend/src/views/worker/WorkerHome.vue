@@ -1,76 +1,94 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
 import StatusBadge from '../../components/shared/StatusBadge.vue'
 import WorkerShiftCard from '../../components/shared/WorkerShiftCard.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
 import { useRouter } from 'vue-router'
 import { useShiftStore } from '../../stores/shiftStore'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUserStore } from '../../stores/userStore'
+import { useWorkerStore } from '../../stores/workerStore'
+import api from '../../services/api'
 
 const router = useRouter()
 const shiftStore = useShiftStore()
 const scheduleStore = useScheduleStore()
 const userStore = useUserStore()
+const workerStore = useWorkerStore()
 
-onMounted(() => {
-  scheduleStore.fetchMySchedule().catch(() => {})
+const clockingIn = ref(false)
+const showModal = ref(false)
+const modalSuccess = ref(false)
+const modalMessage = ref('')
+
+onMounted(async () => {
+  await Promise.allSettled([
+    scheduleStore.fetchMySchedule(),
+    shiftStore.fetchMyShifts()
+  ])
 })
 
-// --- Mock Data (Matches the Image Exactly) ---
-// Swapped to computed properties pointing to your stores with fallbacks
 const user = computed(() => ({
-  name: userStore.user?.username || 'Alex',
-  scheduledShiftsCount: scheduleStore.mySchedule.length || 4
+  name: userStore.user?.username || 'Worker',
+  scheduledShiftsCount: scheduleStore.mySchedule.length
 }))
 
-const stats = ref({
-  hours: '124.5h',
-  earnings: '$2,480.00',
-  rating: '4.9'
+const stats = computed(() => ({
+  hours: `${workerStore.workerStats.hours}h`,
+  earnings: '—',
+  rating: workerStore.workerStats.rating
+}))
+
+const nextShift = computed(() => {
+  if (scheduleStore.mySchedule.length === 0) return null
+  return scheduleStore.mySchedule[0]
 })
 
-const upcomingShifts = computed(() => {
-  if (scheduleStore.mySchedule.length > 0) {
-    return scheduleStore.mySchedule.map(s => {
-      const d = new Date(s.date)
-      return {
-        id: s.id,
-        month: d.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
-        day: String(d.getDate()).padStart(2, '0'),
-        title: s.role || s.roleName,
-        time: s.time || 'TBD',
-        location: s.business || 'Location TBD',
-        pay: s.pay || 'TBD',
-        status: s.status.toUpperCase() || 'CONFIRMED'
-      }
-    })
+const handleClockIn = async () => {
+  if (!nextShift.value) return
+  clockingIn.value = true
+  try {
+    await api.post('/clock', { shiftId: nextShift.value.id, type: 'CLOCK_IN' })
+    modalSuccess.value = true
+    modalMessage.value = 'You have clocked in successfully!'
+  } catch (e) {
+    modalSuccess.value = false
+    modalMessage.value = e?.response?.data?.message || 'Failed to clock in.'
+  } finally {
+    clockingIn.value = false
+    showModal.value = true
   }
-  return [
-    { id: 1, month: 'OCT', day: '24', title: 'Supervisor - Event Logistics', time: '08:00 AM - 04:00 PM', location: 'North Stadium', pay: '$25.50/hr', status: 'CONFIRMED' },
-    { id: 2, month: 'OCT', day: '26', title: 'General Labor - Warehouse', time: '10:00 PM - 06:00 AM', location: 'East Distribution Hub', pay: '$19.00/hr', status: 'CONFIRMED' },
-    { id: 3, month: 'OCT', day: '28', title: 'Inventory Counter', time: '09:00 AM - 01:00 PM', location: 'Tech Solutions Plaza', pay: '$22.00/hr', status: 'TENTATIVE' }
-  ]
+}
+
+const upcomingShifts = computed(() => {
+  return scheduleStore.mySchedule.map(s => {
+    const d = new Date(s.date)
+    return {
+      id: s.id,
+      month: d.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
+      day: String(d.getDate()).padStart(2, '0'),
+      title: s.role || s.roleName,
+      time: s.time || 'TBD',
+      location: s.business || 'Location TBD',
+      pay: s.pay || 'TBD',
+      status: (s.status || 'CONFIRMED').toUpperCase()
+    }
+  })
 })
 
 const pendingApplications = computed(() => {
-  if (shiftStore.myApplications.length > 0) {
-    return shiftStore.myApplications.map(app => ({
-      id: app.id,
-      title: app.role || app.roleName,
-      company: app.business,
-      status: 'UNDER REVIEW',
-      statusType: 'info',
-      appliedDays: 1,
-      pay: app.pay || 'TBD',
-      actionText: 'View Details',
-      actionType: 'outline'
-    }))
-  }
-  return [
-    { id: 1, title: 'Senior Event Lead', company: 'City Festival Operations', status: 'UNDER REVIEW', statusType: 'info', appliedDays: 2, pay: '$32.00/hr', actionText: 'View Details', actionType: 'outline' },
-    { id: 2, title: 'Logistics Coordinator', company: 'Global Expo 2024', status: 'INTERVIEW INVITED', statusType: 'warning', appliedDays: 5, pay: '$28.00/hr', actionText: 'Action Needed', actionType: 'solid' }
-  ]
+  return shiftStore.myApplications.map(app => ({
+    id: app.id,
+    title: app.role || app.roleName,
+    company: app.business,
+    status: 'UNDER REVIEW',
+    statusType: 'info',
+    appliedDays: 1,
+    pay: app.pay || 'TBD',
+    actionText: 'View Details',
+    actionType: 'outline'
+  }))
 })
 </script>
 
@@ -86,13 +104,16 @@ const pendingApplications = computed(() => {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
           </div>
           <div class="next-shift-info">
-            <span class="alert-label">NEXT SHIFT STARTS SOON</span>
-            <h3>Morning Floor Shift at City Center</h3>
-            <p>Starts in 28 minutes. Remember to clock in via the app.</p>
+            <span class="alert-label">NEXT SHIFT</span>
+            <h3 v-if="nextShift">{{ nextShift.roleName || nextShift.role || 'Shift' }} — {{ nextShift.date }}</h3>
+            <h3 v-else>No upcoming shifts</h3>
+            <p v-if="nextShift">{{ nextShift.startTime }} – {{ nextShift.endTime }}. Remember to clock in via the app.</p>
+            <p v-else>Check the marketplace for available shifts.</p>
           </div>
           <div class="next-shift-actions">
-            <button class="btn btn-primary">Clock In</button>
-            <button class="btn btn-secondary">View Map</button>
+            <button class="btn btn-primary" :disabled="clockingIn" @click="handleClockIn">
+              {{ clockingIn ? 'Clocking In...' : 'Clock In' }}
+            </button>
           </div>
         </div>
 
@@ -120,6 +141,7 @@ const pendingApplications = computed(() => {
             </div>
             
             <div class="shifts-list">
+              <p v-if="!scheduleStore.loading && upcomingShifts.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No upcoming shifts found.</p>
               <WorkerShiftCard v-for="shift in upcomingShifts" :key="shift.id" :shift="shift" />
             </div>
           </section>
@@ -130,6 +152,7 @@ const pendingApplications = computed(() => {
             </div>
             
             <div class="applications-list">
+              <p v-if="!shiftStore.loading && pendingApplications.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No pending applications.</p>
               <div v-for="app in pendingApplications" :key="app.id" class="app-card">
                 <h4>{{ app.title }}</h4>
                 <p class="company">{{ app.company }}</p>
@@ -155,6 +178,14 @@ const pendingApplications = computed(() => {
           </section>
 
         </div>
+
+        <ConfirmModal
+          v-if="showModal"
+          :title="modalSuccess ? 'Success' : 'Error'"
+          :message="modalMessage"
+          @close="showModal = false"
+          @confirm="showModal = false"
+        />
   </WorkerLayout>
 </template>
 
@@ -408,8 +439,6 @@ const pendingApplications = computed(() => {
   background-color: #f8fafc;
   color: var(--text-main);
 }
-
-
 
 /* Responsive adjustments */
 @media (max-width: 1024px) {

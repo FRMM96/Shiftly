@@ -1,80 +1,118 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
+import { useScheduleStore } from '../../stores/scheduleStore'
+import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
+import {
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek,
+  eachDayOfInterval, format, addMonths, subMonths,
+  isSameMonth, isSameDay, isToday
+} from 'date-fns'
 
-// Mock Data matching the image exactly
-const user = ref({
-  name: 'Alex Johnson',
-  role: 'Logistics Lead',
-  avatar: 'https://i.pravatar.cc/150?u=alex_johnson'
+const router = useRouter()
+const scheduleStore = useScheduleStore()
+const { selectedShift, mySchedule, loading } = storeToRefs(scheduleStore)
+
+const activeMonth = ref(new Date())
+const selectedDate = ref(null)
+
+const monthLabel = computed(() => format(activeMonth.value, 'MMMM yyyy'))
+
+const calendarDays = computed(() => {
+  const monthStart = startOfMonth(activeMonth.value)
+  const monthEnd = endOfMonth(activeMonth.value)
+  const calStart = startOfWeek(monthStart, { weekStartsOn: 0 })
+  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 0 })
+  const days = eachDayOfInterval({ start: calStart, end: calEnd })
+
+  // Build a lookup: 'YYYY-MM-DD' -> shift
+  const shiftMap = {}
+  for (const s of mySchedule.value) {
+    shiftMap[s.date] = s
+  }
+
+  return days.map(d => {
+    const dateStr = format(d, 'yyyy-MM-dd')
+    const shift = shiftMap[dateStr] || null
+    return {
+      dateObj: d,
+      date: d.getDate(),
+      dateStr,
+      isMuted: !isSameMonth(d, activeMonth.value),
+      isToday: isToday(d),
+      isSelected: selectedDate.value ? isSameDay(d, selectedDate.value) : false,
+      shift: shift ? { time: shift.time || '', type: shift.role || '' } : null
+    }
+  })
 })
 
-const currentDate = 'Oct 24, 2023'
+const totalHours = computed(() => {
+  let total = 0
+  for (const s of mySchedule.value) {
+    if (s.time) {
+      const parts = s.time.split(' - ')
+      if (parts.length === 2) {
+        const [startH, startM] = parts[0].split(':').map(Number)
+        const [endH, endM] = parts[1].split(':').map(Number)
+        total += (endH + endM / 60) - (startH + startM / 60)
+      }
+    }
+  }
+  return total.toFixed(1)
+})
 
-// Calendar Data Construction
-const calendarDays = ref([
-  // Previous Month
-  { date: 24, isMuted: true }, { date: 25, isMuted: true }, { date: 26, isMuted: true }, 
-  { date: 27, isMuted: true }, { date: 28, isMuted: true }, { date: 29, isMuted: true }, { date: 30, isMuted: true },
-  
-  // Current Month
-  { date: 1 }, 
-  { date: 2, shift: { time: '08:00 - 16:30', type: 'Day Shift' } }, 
-  { date: 3 }, 
-  { date: 4, shift: { time: '08:00 - 16:30', type: 'Day Shift' } }, 
-  { date: 5 }, { date: 6 }, { date: 7 },
-  
-  { date: 8 }, { date: 9 }, 
-  { date: 10, shift: { time: '08:00 - 16:30', type: 'Day Shift' } }, 
-  { date: 11, isSelected: true, shift: { time: '08:00 - 16:30', type: 'Day Shift' } }, 
-  { date: 12 }, 
-  { date: 13, isHoliday: true, holidayName: 'Holiday' }, 
-  { date: 14 },
-  
-  { date: 15 }, { date: 16 }, { date: 17 }, { date: 18 }, { date: 19 }, { date: 20 }, { date: 21 }
-])
+const nextShiftLabel = computed(() => {
+  if (mySchedule.value.length === 0) return 'No upcoming shifts'
+  const next = mySchedule.value[0]
+  return `${next.date}, ${next.time || 'TBD'}`
+})
 
-// Selected Shift Details
-const selectedShift = ref({
-  date: 'Wednesday, Oct 11, 2023',
-  type: 'Day Shift',
-  hours: '8.5 Hours',
-  location: 'Radix HQ - North Wing',
-  team: 'Logistics & Operations B',
-  clockInWindow: '07:45 - 08:15'
+const prevMonth = () => { activeMonth.value = subMonths(activeMonth.value, 1) }
+const nextMonth = () => { activeMonth.value = addMonths(activeMonth.value, 1) }
+
+const selectDay = (day) => {
+  selectedDate.value = day.dateObj
+  if (day.shift) {
+    const matched = mySchedule.value.find(s => s.date === day.dateStr)
+    scheduleStore.selectedShift = matched || null
+  } else {
+    scheduleStore.selectedShift = null
+  }
+}
+
+onMounted(() => {
+  scheduleStore.fetchMySchedule().catch(() => {})
 })
 </script>
 
 <template>
   <WorkerLayout>
     <div class="main-column">
-        
-        <header class="top-header">
-          <h1 class="page-title">My Schedule</h1>
-          
-          <div class="header-right">
-            <button class="icon-btn notification-btn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-              <span class="dot"></span>
-            </button>
-            <button class="icon-btn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            </button>
-            <div class="date-display">{{ currentDate }}</div>
-          </div>
-        </header>
 
-        <main class="content-area">
+        <div class="content-area">
           
+          <div v-if="loading" class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading your schedule...</p>
+          </div>
+
+          <div v-if="!loading && mySchedule.length === 0" class="empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <h3>No shifts scheduled</h3>
+            <p>You don't have any shifts scheduled for this period.</p>
+          </div>
+
+          <template v-if="!loading && mySchedule.length > 0">
           <div class="schedule-layout">
             
             <div class="calendar-card">
               <div class="calendar-header">
                 <div class="month-selector">
-                  <h2>October 2023</h2>
+                  <h2>{{ monthLabel }}</h2>
                   <div class="arrows">
-                    <button class="nav-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
-                    <button class="nav-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+                    <button class="nav-arrow" @click="prevMonth"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                    <button class="nav-arrow" @click="nextMonth"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
                   </div>
                 </div>
                 <div class="view-toggle">
@@ -95,14 +133,16 @@ const selectedShift = ref({
                 </div>
 
                 <div class="days-grid">
-                  <div 
-                    v-for="(day, index) in calendarDays" 
+                  <div
+                    v-for="(day, index) in calendarDays"
                     :key="index"
                     class="day-cell"
-                    :class="{ 
-                      'muted-cell': day.isMuted, 
-                      'selected-cell': day.isSelected 
+                    :class="{
+                      'muted-cell': day.isMuted,
+                      'selected-cell': day.isSelected,
+                      'today-cell': day.isToday
                     }"
+                    @click="selectDay(day)"
                   >
                     <span class="date-number">{{ day.date }}</span>
                     
@@ -127,6 +167,7 @@ const selectedShift = ref({
                   <h3>Shift Details</h3>
                 </div>
 
+                <template v-if="selectedShift">
                 <div class="detail-section">
                   <span class="label">SELECTED DATE</span>
                   <p class="value-strong">{{ selectedShift.date }}</p>
@@ -135,28 +176,22 @@ const selectedShift = ref({
                 <div class="detail-row-2">
                   <div class="detail-block">
                     <span class="label">SHIFT TYPE</span>
-                    <p class="value">{{ selectedShift.type }}</p>
+                    <p class="value">{{ selectedShift.role }}</p>
                   </div>
                   <div class="detail-block">
                     <span class="label">HOURS</span>
-                    <p class="value value-blue">{{ selectedShift.hours }}</p>
+                    <p class="value value-blue">{{ selectedShift.time }}</p>
                   </div>
                 </div>
 
                 <div class="detail-section">
-                  <span class="label">LOCATION</span>
-                  <p class="value location-value">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                    {{ selectedShift.location }}
-                  </p>
+                  <span class="label">BUSINESS</span>
+                  <p class="value">{{ selectedShift.business }}</p>
                 </div>
-
-                <div class="detail-section">
-                  <span class="label">TEAM</span>
-                  <p class="value">{{ selectedShift.team }}</p>
-                </div>
-
-                <p class="clock-in-window">Clock-in window: {{ selectedShift.clockInWindow }}</p>
+              </template>
+              <template v-else>
+                <p class="value" style="color: var(--text-muted);">Select a day on the calendar to view shift details.</p>
+              </template>
               </div>
 
               <div class="detail-card actions-card">
@@ -166,23 +201,23 @@ const selectedShift = ref({
                 </div>
 
                 <div class="action-buttons-list">
-                  <button class="action-btn btn-sick">
+                  <button class="action-btn btn-sick" @click="router.push({ path: '/worker/sick', query: selectedDate ? { date: format(selectedDate, 'yyyy-MM-dd') } : {} })">
                     <div class="btn-left">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><line x1="12" y1="13" x2="12" y2="19"></line><line x1="9" y1="16" x2="15" y2="16"></line></svg>
                       Report Sick
                     </div>
                     <svg class="arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                   </button>
-                  
-                  <button class="action-btn btn-timeoff">
+
+                  <button class="action-btn btn-timeoff" @click="router.push({ path: '/worker/timeoff', query: selectedDate ? { date: format(selectedDate, 'yyyy-MM-dd') } : {} })">
                     <div class="btn-left">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><line x1="9" y1="14" x2="15" y2="14"></line><line x1="12" y1="11" x2="12" y2="17"></line></svg>
                       Request Time Off
                     </div>
                     <svg class="arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                   </button>
-                  
-                  <button class="action-btn btn-swap">
+
+                  <button class="action-btn btn-swap" @click="router.push('/worker/swapshift')">
                     <div class="btn-left">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
                       Swap Shift
@@ -202,47 +237,26 @@ const selectedShift = ref({
               </div>
               <div class="banner-text">
                 <span class="banner-label">NEXT UPCOMING SHIFT</span>
-                <h3>Tomorrow, 08:00 AM</h3>
+                <h3>{{ nextShiftLabel }}</h3>
               </div>
             </div>
 
             <div class="banner-right">
               <div class="banner-text right-align">
-                <span class="banner-label">OCTOBER HOURS TOTAL</span>
-                <h3>156.5 / 160.0 hrs</h3>
+                <span class="banner-label">{{ monthLabel.toUpperCase() }} HOURS TOTAL</span>
+                <h3>{{ totalHours }} hrs</h3>
               </div>
               <button class="btn-clock-in">CLOCK IN EARLY</button>
             </div>
           </div>
-
-        </main>
+          </template>
+        </div>
       </div>
   </WorkerLayout>
 </template>
 
-< style scoped>
+<style scoped>
 /* --- Color Palette & Variables --- */
-:root {
-  --bg-outer: #F1F5F9;
-  --bg-inner: #FFFFFF;
-  --bg-main: #F8FAFC;
-  --bg-hover: #F1F5F9;
-  
-  --primary: #0047FF;
-  --primary-hover: #003BE0;
-  
-  --text-dark: #0F172A;
-  --text-muted: #64748B;
-  --border: #E2E8F0;
-  
-  --shift-bg: #DBEAFE;
-  --shift-text: #1D4ED8;
-  --shift-bg-selected: #0047FF;
-  --shift-text-selected: #FFFFFF;
-  
-  --holiday-bg: #FEF3C7;
-  --holiday-text: #D97706;
-}
 
 /* --- Main Content Column --- */
 .main-column {
@@ -251,65 +265,6 @@ const selectedShift = ref({
   flex-direction: column;
   background-color: var(--bg-main);
   overflow-y: auto;
-}
-
-/* --- Top Header --- */
-.top-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 2.5rem;
-  background-color: var(--bg-inner);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.page-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin: 0;
-  color: var(--text-dark);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-}
-
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  padding: 0;
-}
-
-.icon-btn:hover { color: var(--text-dark); }
-
-.notification-btn .dot {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 8px;
-  height: 8px;
-  background-color: #EF4444;
-  border-radius: 50%;
-  border: 2px solid var(--bg-inner);
-}
-
-.date-display {
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  padding-left: 1rem;
-  border-left: 1px solid var(--border);
 }
 
 /* --- Content Area --- */
@@ -428,6 +383,27 @@ const selectedShift = ref({
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.day-cell:hover {
+  background-color: #F1F5F9;
+}
+
+.day-cell.today-cell .date-number {
+  background-color: var(--primary);
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-cell.selected-cell {
+  background-color: #EFF6FF;
 }
 
 .day-cell.muted-cell {
@@ -665,3 +641,55 @@ const selectedShift = ref({
     padding-right: 0;
   }
 }
+
+/* Loading & Empty States */
+.loading-state, .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  background-color: var(--bg-inner);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.empty-state svg {
+  margin-bottom: 1rem;
+  opacity: 0.8;
+}
+
+.empty-state h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-state p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
+</style>

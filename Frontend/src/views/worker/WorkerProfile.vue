@@ -3,28 +3,31 @@ import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
 import { useUserStore } from '../../stores/userStore'
+import { useWorkerStore } from '../../stores/workerStore'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-// Mock data matching the image (fallback to store if available)
-const user = computed(() => userStore.user || {
-  name: 'Alex Rivera',
-  role: 'Senior Field Technician',
-  employeeId: 'RD-99234',
-  email: 'alex.rivera@radix.io',
-  phone: '+1 (555) 012-3456',
-  department: 'Field Operations - West Coast',
-  joinDate: 'March 12, 2021',
-  location: 'Seattle, WA',
-  avatar: 'https://i.pravatar.cc/150?u=alex_rivera'
+const user = computed(() => {
+  const u = userStore.user
+  if (!u) return {
+    name: 'Loading...', role: '', employeeId: '', email: '', phone: '', department: '', joinDate: '', location: '', avatar: ''
+  }
+  return {
+    name: u.username || u.name || 'Worker',
+    role: u.role === 'EMPLOYEE' ? 'Worker' : u.role,
+    employeeId: u.id ? u.id.substring(0, 8).toUpperCase() : 'N/A',
+    email: u.email,
+    phone: u.phone || '',
+    department: u.department || 'General',
+    joinDate: new Date(u.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    location: u.location || 'Not set',
+    avatar: `https://i.pravatar.cc/150?u=${u.id}`
+  }
 })
 
-const stats = ref({
-  hours: '1,240',
-  tasks: '482',
-  rating: '4.9/5.0'
-})
+const { workerStats } = storeToRefs(useWorkerStore())
 
 const isEditing = ref(false)
 const form = ref({})
@@ -33,7 +36,7 @@ watch(
   () => user.value,
   (u) => {
     form.value = {
-      name: u?.name || '',
+      name: u?.username || u?.name || '',
       email: u?.email || '',
       phone: u?.phone || '',
       department: u?.department || '',
@@ -48,7 +51,7 @@ const handleEdit = () => { isEditing.value = true }
 
 const handleCancel = () => {
   form.value = {
-    name: user.value?.name || '',
+    name: user.value?.username || user.value?.name || '',
     email: user.value?.email || '',
     phone: user.value?.phone || '',
     department: user.value?.department || '',
@@ -58,9 +61,19 @@ const handleCancel = () => {
   isEditing.value = false
 }
 
-const handleSave = () => {
-  // Save logic here
-  userStore.updateProfile?.(form.value)
+const handleSave = async () => {
+  try {
+    const { default: api } = await import('../../services/api')
+    await api.patch('/profile', {
+      phone: form.value.phone,
+      department: form.value.department,
+      location: form.value.location
+    })
+    // Re-fetch user to update store
+    await userStore.fetchMe()
+  } catch (e) {
+    console.error('Failed to save profile:', e)
+  }
   isEditing.value = false
 }
 
@@ -112,21 +125,21 @@ const doLogout = () => {
             <svg class="stat-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             <span>Total Hours</span>
           </div>
-          <div class="stat-value">{{ stats.hours }} <span class="stat-unit">hrs</span></div>
+          <div class="stat-value">{{ workerStats.hours }} <span class="stat-unit">hrs</span></div>
         </div>
         <div class="stat-card">
           <div class="stat-header">
             <svg class="stat-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
             <span>Tasks Completed</span>
           </div>
-          <div class="stat-value">{{ stats.tasks }}</div>
+          <div class="stat-value">{{ workerStats.tasks }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-header">
             <svg class="stat-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
             <span>Performance Rating</span>
           </div>
-          <div class="stat-value">{{ stats.rating }}</div>
+          <div class="stat-value">{{ workerStats.rating }}</div>
         </div>
       </div>
 
@@ -202,7 +215,7 @@ const doLogout = () => {
           <h4>Notification Preferences</h4>
           <p>Manage how you receive alerts</p>
         </div>
-        <a href="#" class="settings-link">Manage</a>
+        <router-link to="/worker/notifications" class="settings-link">Manage</router-link>
       </div>
 
       <div class="settings-row">
@@ -213,7 +226,7 @@ const doLogout = () => {
           <h4>Security & Password</h4>
           <p>Last changed 3 months ago</p>
         </div>
-        <a href="#" class="settings-link">Update</a>
+        <router-link to="/change-password" class="settings-link">Update</router-link>
       </div>
 
     </div>

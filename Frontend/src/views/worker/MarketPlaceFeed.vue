@@ -2,11 +2,16 @@
 import { ref, computed, onMounted } from 'vue'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
 import StatusBadge from '../../components/shared/StatusBadge.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
+import TabBar from '../../components/shared/TabBar.vue'
+import LoadMoreButton from '../../components/shared/LoadMoreButton.vue'
 import { useRouter } from 'vue-router'
 import { useShiftStore } from '../../stores/shiftStore'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
 const shiftStore = useShiftStore()
+const { loading } = storeToRefs(shiftStore)
 
 onMounted(() => {
   shiftStore.fetchMarketplace().catch(() => {})
@@ -18,65 +23,72 @@ const showModal = ref(false)
 const modalSuccess = ref(false)
 const modalMessage = ref('')
 
+const activeTab = ref('available')
+
+// --- Filters ---
+const filterDate = ref('')
+const filterRole = ref('')
+const filterMinPay = ref('')
+const showDateFilter = ref(false)
+const showRoleFilter = ref(false)
+const showPayFilter = ref(false)
+
+const uniqueRoles = computed(() => {
+  const roles = new Set(shiftStore.shifts.map(s => s.roleName || s.role).filter(Boolean))
+  return [...roles]
+})
+
+const clearFilters = () => {
+  filterDate.value = ''
+  filterRole.value = ''
+  filterMinPay.value = ''
+}
+
+const hasActiveFilters = computed(() => filterDate.value || filterRole.value || filterMinPay.value)
+
 // --- Data bound to store with fallback ---
 const openShifts = computed(() => {
-  if (shiftStore.shifts.length > 0) {
-    return shiftStore.shifts.map((s, index) => {
-      const bgImages = [
-        'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=400&h=200',
-        'https://images.unsplash.com/photo-1478860409688-df42af707b62?auto=format&fit=crop&q=80&w=400&h=200',
-        'https://images.unsplash.com/photo-1569336415962-a4bd9f69cd83?auto=format&fit=crop&q=80&w=400&h=200'
-      ]
-      return {
-        id: s.id,
-        badgeText: 'HIGH PRIORITY',
-        badgeType: 'success',
-        pay: s.pay || 'TBD',
-        title: s.role || s.roleName,
-        company: s.business,
-        time: `${s.startTime || 'TBD'} - ${s.endTime || 'TBD'}`,
-        date: s.date,
-        mapImage: bgImages[index % bgImages.length],
-        location: s.business
-      }
-    })
+  if (activeTab.value !== 'available') {
+    return []
   }
 
-  return [
-    {
-      id: 1,
-      badgeText: 'HIGH PRIORITY',
-      badgeType: 'success',
-      pay: '$85.00 / hr',
-      title: 'Lead Systems Administrator',
-      company: 'Radix Logistics HQ',
-      time: '8:00 AM - 5:00 PM',
-      mapImage: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=400&h=200',
-      location: 'Financial District'
-    },
-    {
-      id: 2,
-      badgeText: 'QUICK APPLY',
-      badgeType: 'info',
-      pay: '$62.50 / hr',
-      title: 'Frontend Security Auditor',
-      company: 'CyberSecure Labs',
-      time: '10:00 PM - 6:00 AM (Night)',
-      mapImage: 'https://images.unsplash.com/photo-1478860409688-df42af707b62?auto=format&fit=crop&q=80&w=400&h=200',
-      location: 'Remote / HQ'
-    },
-    {
-      id: 3,
-      badgeText: 'ONE-TIME SHIFT',
-      badgeType: 'warning',
-      pay: '$120.00 / hr',
-      title: 'Incident Response Coordinator',
-      company: 'National Data Center',
-      date: 'Saturday, Oct 24',
-      mapImage: 'https://images.unsplash.com/photo-1569336415962-a4bd9f69cd83?auto=format&fit=crop&q=80&w=400&h=200',
-      location: 'Silicon Valley'
+  let filtered = shiftStore.shifts
+
+  if (filterDate.value) {
+    filtered = filtered.filter(s => s.date === filterDate.value)
+  }
+  if (filterRole.value) {
+    filtered = filtered.filter(s => (s.roleName || s.role) === filterRole.value)
+  }
+  if (filterMinPay.value) {
+    const min = parseFloat(filterMinPay.value)
+    if (!isNaN(min)) {
+      filtered = filtered.filter(s => {
+        const pay = parseFloat(String(s.pay).replace(/[^0-9.]/g, ''))
+        return !isNaN(pay) && pay >= min
+      })
     }
-  ]
+  }
+
+  return filtered.map((s, index) => {
+    const bgImages = [
+      'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=400&h=200',
+      'https://images.unsplash.com/photo-1478860409688-df42af707b62?auto=format&fit=crop&q=80&w=400&h=200',
+      'https://images.unsplash.com/photo-1569336415962-a4bd9f69cd83?auto=format&fit=crop&q=80&w=400&h=200'
+    ]
+    return {
+      id: s.id,
+      badgeText: s.priority === 'URGENT' ? 'URGENT' : s.priority === 'LOW' ? 'LOW PRIORITY' : 'AVAILABLE',
+      badgeType: s.priority === 'URGENT' ? 'success' : 'info',
+      pay: s.pay || 'TBD',
+      title: s.role || s.roleName,
+      company: s.business,
+      time: `${s.startTime || 'TBD'} - ${s.endTime || 'TBD'}`,
+      date: s.date,
+      mapImage: bgImages[index % bgImages.length],
+      location: s.business
+    }
+  })
 })
 
 const handleApply = async (shift) => {
@@ -103,50 +115,78 @@ const closeModal = () => {
 <template>
   <WorkerLayout>
     <div class="main-content">
-      <div class="tabs-container">
-        <div class="tabs-left">
-          <button class="tab active">Available Shifts</button>
-          <button class="tab">Applied</button>
-          <button class="tab">Upcoming</button>
-        </div>
-        <button class="tab archived">Archived</button>
-      </div>
+      <TabBar
+        :tabs="[
+          { value: 'available', label: 'Available Shifts' },
+          { value: 'applied', label: 'Applied' },
+          { value: 'upcoming', label: 'Upcoming' },
+          { value: 'archived', label: 'Archived' }
+        ]"
+        v-model="activeTab"
+        style="margin-bottom: 1.5rem;"
+      />
 
       <div class="filters-bar">
         <div class="filters-left">
-          <button class="filter-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-            Date: All
-            <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
-          <button class="filter-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
-            Role: All
-            <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
-          <button class="filter-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-            Pay Range
-            <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
-          <button class="filter-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-            Distance
-            <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
+          <div class="filter-dropdown">
+            <button class="filter-btn" @click="showDateFilter = !showDateFilter">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              {{ filterDate || 'Date: All' }}
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div v-if="showDateFilter" class="dropdown-menu">
+              <input type="date" v-model="filterDate" class="filter-input" @change="showDateFilter = false" />
+              <button v-if="filterDate" class="dropdown-clear" @click="filterDate = ''; showDateFilter = false">Clear</button>
+            </div>
+          </div>
+
+          <div class="filter-dropdown">
+            <button class="filter-btn" @click="showRoleFilter = !showRoleFilter">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+              {{ filterRole || 'Role: All' }}
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div v-if="showRoleFilter" class="dropdown-menu">
+              <button class="dropdown-item" @click="filterRole = ''; showRoleFilter = false">All Roles</button>
+              <button v-for="role in uniqueRoles" :key="role" class="dropdown-item" @click="filterRole = role; showRoleFilter = false">{{ role }}</button>
+            </div>
+          </div>
+
+          <div class="filter-dropdown">
+            <button class="filter-btn" @click="showPayFilter = !showPayFilter">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+              {{ filterMinPay ? `Min: ${filterMinPay}` : 'Pay Range' }}
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div v-if="showPayFilter" class="dropdown-menu">
+              <input type="number" v-model="filterMinPay" placeholder="Min pay..." class="filter-input" />
+              <button class="dropdown-clear" @click="filterMinPay = ''; showPayFilter = false">Clear</button>
+            </div>
+          </div>
         </div>
-        <button class="filter-btn more-filters">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-          More Filters
+        <button v-if="hasActiveFilters" class="filter-btn more-filters" @click="clearFilters">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          Clear Filters
         </button>
       </div>
 
       <div class="list-header">
-        <h2>Open Shifts Near San Francisco</h2>
-        <span class="shift-count">Showing 42 available shifts</span>
+        <h2>Open Shifts</h2>
+        <span class="shift-count">Showing {{ openShifts.length }} available shift{{ openShifts.length !== 1 ? 's' : '' }}</span>
       </div>
 
-      <div class="shift-list">
+      <div v-if="loading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading available shifts...</p>
+      </div>
+
+      <div v-if="!loading && openShifts.length === 0" class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        <h3>No shifts available right now</h3>
+        <p>Check back later or adjust your filters.</p>
+      </div>
+
+      <div v-if="!loading && openShifts.length > 0" class="shift-list">
         <div v-for="shift in openShifts" :key="shift.id" class="shift-card">
           
           <div class="card-content">
@@ -171,7 +211,7 @@ const closeModal = () => {
 
             <div class="card-actions">
               <button class="btn btn-primary" :disabled="applying" @click="handleApply(shift)">{{ applying ? 'Applying...' : 'Apply Now' }}</button>
-              <router-link :to="`/worker/shift/${shift.id}`" class="btn btn-icon" title="More Info">
+              <router-link :to="`/worker/marketplace/${shift.id}`" class="btn btn-icon" title="More Info">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
               </router-link>
             </div>
@@ -197,35 +237,17 @@ const closeModal = () => {
     </div>
   </WorkerLayout>
 
-  <!-- Apply Modal -->
-  <Teleport to="body">
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-box">
-        <div :class="modalSuccess ? 'modal-success' : 'modal-error'">
-          <div class="modal-icon" :class="modalSuccess ? 'success-icon' : 'error-icon'">
-            <svg v-if="modalSuccess" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-          </div>
-          <h3>{{ modalSuccess ? 'Applied!' : 'Error' }}</h3>
-          <p>{{ modalMessage }}</p>
-        </div>
-        <button class="btn btn-primary modal-close-btn" @click="closeModal">Got it</button>
-      </div>
-    </div>
-  </Teleport>
+  <ConfirmModal
+    :is-open="showModal"
+    :title="modalSuccess ? 'Applied!' : 'Error'"
+    :message="modalMessage"
+    :type="modalSuccess ? 'success' : 'danger'"
+    @close="closeModal"
+  />
 
 </template>
 
 <style scoped>
-/* --- Base Theme & Reset --- */
-:root {
-  --primary: #0047FF;
-  --primary-hover: #003BE0;
-  --text-main: #111827;
-  --text-muted: #6B7280;
-  --bg-color: #F8FAFC;
-  --border: #E5E7EB;
-}
 
 /* --- Main Content --- */
 .main-content {
@@ -294,6 +316,62 @@ const closeModal = () => {
 
 .filter-btn:hover { background-color: #F8FAFC; border-color: #D1D5DB; }
 
+.filter-dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.5rem;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 20;
+  min-width: 180px;
+  padding: 0.5rem;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-radius: 4px;
+  color: var(--text-main);
+}
+.dropdown-item:hover { background-color: #F3F4F6; }
+
+.filter-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.dropdown-clear {
+  display: block;
+  width: 100%;
+  padding: 0.4rem;
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
 .more-filters {
   background-color: #EFF6FF;
   border-color: #DBEAFE;
@@ -353,8 +431,6 @@ const closeModal = () => {
   gap: 1rem;
   margin-bottom: 0.75rem;
 }
-
-
 
 .pay-rate {
   font-weight: 700;
@@ -498,4 +574,56 @@ const closeModal = () => {
 .modal-box h3 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.5rem; }
 .modal-box p { color: #6B7280; font-size: 0.95rem; margin: 0 0 1.5rem; }
 .modal-close-btn { width: 100%; }
+
+/* Loading & Empty States */
+.loading-state, .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  background-color: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.empty-state svg {
+  margin-bottom: 1rem;
+  opacity: 0.8;
+}
+
+.empty-state h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-state p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
 </style>

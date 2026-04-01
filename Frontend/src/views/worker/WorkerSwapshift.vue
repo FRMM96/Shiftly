@@ -1,162 +1,270 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
+import TabBar from '../../components/shared/TabBar.vue'
+import ConfirmModal from '../../components/shared/ConfirmModal.vue'
+import { useScheduleStore } from '../../stores/scheduleStore'
+import { useUserStore } from '../../stores/userStore'
+import api from '../../services/api'
 
-// --- Mock Data ---
-const currentShift = ref({
-  date: 'Monday, Oct 24',
-  time: '08:00 AM - 04:00 PM',
-  role: 'Senior Nurse',
-  image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=400&h=300' // Hospital corridor placeholder
+const scheduleStore = useScheduleStore()
+const userStore = useUserStore()
+const activeTab = ref('propose')
+const colleagues = ref([])
+const swapHistory = ref([])
+const loading = ref(false)
+const showModal = ref(false)
+const modalSuccess = ref(false)
+const modalMessage = ref('')
+
+// Swap proposal state
+const selectedMyShift = ref(null)
+const selectedColleague = ref(null)
+const colleagueShifts = ref([])
+const selectedColleagueShift = ref(null)
+const loadingColleagueShifts = ref(false)
+const proposing = ref(false)
+
+const myShifts = computed(() => {
+  return scheduleStore.mySchedule.map(s => ({
+    id: s.id,
+    label: `${s.roleName || 'Shift'} — ${new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (${s.startTime} - ${s.endTime})`,
+    date: s.date,
+    roleName: s.roleName,
+    startTime: s.startTime,
+    endTime: s.endTime
+  }))
 })
 
-const colleagues = ref([
-  {
-    id: 1,
-    name: 'Sarah Jenkins',
-    availability: 'Requesting: Oct 24 (Evening)',
-    avatar: 'https://i.pravatar.cc/150?u=sarah',
-    urgent: false
-  },
-  {
-    id: 2,
-    name: 'Marcus Thorne',
-    availability: 'Available: Oct 24 (Full Day)',
-    avatar: 'https://i.pravatar.cc/150?u=marcus',
-    urgent: false
-  },
-  {
-    id: 3,
-    name: 'Elena Rodriguez',
-    availability: 'Available: Flexible Swap',
-    avatar: 'https://i.pravatar.cc/150?u=elena',
-    urgent: false
-  },
-  {
-    id: 4,
-    name: 'Sam Wilson',
-    availability: 'Wants Oct 24, Offering Oct 26',
-    avatar: 'https://i.pravatar.cc/150?u=sam',
-    urgent: true
+onMounted(async () => {
+  await scheduleStore.fetchMySchedule().catch(() => {})
+  // Fetch company colleagues (exclude self)
+  try {
+    const res = await api.get('/users?role=EMPLOYEE')
+    const currentUserId = userStore.user?.id
+    colleagues.value = (res.data.users || res.data || [])
+      .filter(u => u.id !== currentUserId)
+      .map(u => ({
+        id: u.id,
+        name: u.username,
+        avatar: `https://i.pravatar.cc/150?u=${u.id}`
+      }))
+  } catch (e) {
+    console.error('Failed to load colleagues:', e)
   }
-])
+  // Fetch swap history
+  try {
+    const res = await api.get('/swaps')
+    swapHistory.value = (res.data.swaps || []).map(sw => ({
+      id: sw.id,
+      status: sw.status,
+      requester: sw.requester?.username || 'Unknown',
+      target: sw.targetWorker?.username || 'Unknown',
+      createdAt: new Date(sw.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    }))
+  } catch (e) {
+    console.error('Failed to load swap history:', e)
+  }
+})
 
-const handleProposeSwap = (colleague) => {
-  alert(`Proposing swap with ${colleague.name}...`)
+const selectColleague = async (colleague) => {
+  selectedColleague.value = colleague
+  selectedColleagueShift.value = null
+  colleagueShifts.value = []
+  loadingColleagueShifts.value = true
+  try {
+    const res = await api.get(`/shifts/user/${colleague.id}`)
+    colleagueShifts.value = (res.data.shifts || []).map(s => ({
+      id: s.id,
+      label: `${s.roleName || 'Shift'} — ${new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (${s.startTime} - ${s.endTime})`
+    }))
+  } catch (e) {
+    console.error('Failed to load colleague shifts:', e)
+  } finally {
+    loadingColleagueShifts.value = false
+  }
+}
+
+const canPropose = computed(() => {
+  return selectedMyShift.value && selectedColleague.value && selectedColleagueShift.value && !proposing.value
+})
+
+const handleProposeSwap = async () => {
+  if (!canPropose.value) return
+  proposing.value = true
+  try {
+    await api.post('/swaps', {
+      requesterShiftId: selectedMyShift.value,
+      targetWorkerId: selectedColleague.value.id,
+      targetShiftId: selectedColleagueShift.value
+    })
+    modalSuccess.value = true
+    modalMessage.value = `Swap request sent to ${selectedColleague.value.name}. They'll be notified to accept or decline.`
+    // Reset selections
+    selectedMyShift.value = null
+    selectedColleague.value = null
+    selectedColleagueShift.value = null
+    colleagueShifts.value = []
+    // Refresh history
+    const res = await api.get('/swaps')
+    swapHistory.value = (res.data.swaps || []).map(sw => ({
+      id: sw.id,
+      status: sw.status,
+      requester: sw.requester?.username || 'Unknown',
+      target: sw.targetWorker?.username || 'Unknown',
+      createdAt: new Date(sw.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    }))
+  } catch (e) {
+    modalSuccess.value = false
+    modalMessage.value = e?.response?.data?.message || 'Failed to propose swap.'
+  } finally {
+    proposing.value = false
+    showModal.value = true
+  }
 }
 </script>
 
 <template>
   <WorkerLayout>
     <div class="main-content">
-      
+
       <div class="page-header">
         <h1 class="page-title">Swap Shift</h1>
         <p class="page-subtitle">Trade your shift with a colleague quickly and easily.</p>
-        
-        <div class="tabs">
-          <button class="tab-btn active">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-            Open Requests
-          </button>
-          <button class="tab-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-            My History
-          </button>
-        </div>
+
+        <TabBar
+          :tabs="[
+            { value: 'propose', label: 'Propose Swap' },
+            { value: 'history', label: 'My History' }
+          ]"
+          :model-value="activeTab"
+          @update:model-value="activeTab = $event"
+          style="margin-top: 1rem;"
+        />
       </div>
 
-      <section class="section">
-        <h2 class="section-title">Your Current Shift</h2>
-        
-        <div class="current-shift-card">
-          <div class="shift-info">
-            <span class="badge badge-light-blue">ASSIGNED</span>
-            
-            <h3 class="shift-date">{{ currentShift.date }}</h3>
-            
-            <div class="shift-meta">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              <span>{{ currentShift.time }}</span>
+      <!-- PROPOSE TAB -->
+      <template v-if="activeTab === 'propose'">
+        <!-- Step 1: Select your shift -->
+        <section class="section">
+          <h2 class="section-title">1. Select Your Shift</h2>
+          <div v-if="myShifts.length" class="shift-select-list">
+            <div
+              v-for="shift in myShifts"
+              :key="shift.id"
+              class="shift-select-card"
+              :class="{ 'selected': selectedMyShift === shift.id }"
+              @click="selectedMyShift = shift.id"
+            >
+              <span class="badge badge-light-blue">ASSIGNED</span>
+              <p class="shift-select-label">{{ shift.label }}</p>
             </div>
-            
-            <div class="shift-meta">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
-              <span>Role: <strong>{{ currentShift.role }}</strong></span>
-            </div>
-
-            <button class="btn btn-secondary mt-3">View Details</button>
           </div>
-          
-          <div class="shift-image">
-            <img :src="currentShift.image" alt="Shift Location" />
-          </div>
-        </div>
-      </section>
+          <p v-else style="color:var(--text-muted);font-size:0.9rem;">No upcoming shifts to swap.</p>
+        </section>
 
-      <section class="section">
-        <div class="section-header">
-          <h2 class="section-title">Available Colleagues</h2>
-          <a href="#" class="filter-link">Filter by Role</a>
-        </div>
-
-        <div class="colleagues-list">
-          <div 
-            v-for="colleague in colleagues" 
-            :key="colleague.id" 
-            class="colleague-card"
-            :class="{ 'urgent-border': colleague.urgent }"
-          >
-            <div class="colleague-info">
-              <img :src="colleague.avatar" :alt="colleague.name" class="avatar" />
-              <div>
-                <div class="name-row">
+        <!-- Step 2: Pick a colleague -->
+        <section v-if="selectedMyShift" class="section">
+          <h2 class="section-title">2. Pick a Colleague</h2>
+          <div class="colleagues-list">
+            <div
+              v-for="colleague in colleagues"
+              :key="colleague.id"
+              class="colleague-card"
+              :class="{ 'selected': selectedColleague?.id === colleague.id }"
+              @click="selectColleague(colleague)"
+            >
+              <div class="colleague-info">
+                <img :src="colleague.avatar" :alt="colleague.name" class="avatar" />
+                <div>
                   <h4 class="colleague-name">{{ colleague.name }}</h4>
-                  <span v-if="colleague.urgent" class="badge badge-urgent">URGENT</span>
+                  <p class="colleague-availability" v-if="selectedColleague?.id === colleague.id">Selected</p>
+                  <p class="colleague-availability" v-else>Tap to select</p>
                 </div>
-                <p class="colleague-availability">{{ colleague.availability }}</p>
               </div>
             </div>
-            <button class="btn btn-primary" @click="handleProposeSwap(colleague)">
-              Propose Swap
-            </button>
           </div>
-        </div>
+          <p v-if="!colleagues.length" style="color:var(--text-muted);font-size:0.9rem;">No colleagues found.</p>
+        </section>
 
-        <button class="btn btn-dashed mt-4">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          Post Your Own Request
-        </button>
-      </section>
-
-      <section class="info-section">
-        <div class="info-box">
-          <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-          <div class="info-content">
-            <h4>How it works</h4>
-            <p>Once you propose a swap, the colleague will receive a notification. Once they accept, the schedule will be updated automatically and your manager will be notified.</p>
+        <!-- Step 3: Select colleague's shift -->
+        <section v-if="selectedColleague" class="section">
+          <h2 class="section-title">3. Select {{ selectedColleague.name }}'s Shift</h2>
+          <p v-if="loadingColleagueShifts" style="color:var(--text-muted);font-size:0.9rem;">Loading shifts...</p>
+          <div v-else-if="colleagueShifts.length" class="shift-select-list">
+            <div
+              v-for="shift in colleagueShifts"
+              :key="shift.id"
+              class="shift-select-card"
+              :class="{ 'selected': selectedColleagueShift === shift.id }"
+              @click="selectedColleagueShift = shift.id"
+            >
+              <p class="shift-select-label">{{ shift.label }}</p>
+            </div>
           </div>
-        </div>
-      </section>
+          <p v-else style="color:var(--text-muted);font-size:0.9rem;">{{ selectedColleague.name }} has no upcoming shifts.</p>
+        </section>
+
+        <!-- Submit -->
+        <section v-if="selectedMyShift" class="section">
+          <button
+            class="btn btn-primary btn-full"
+            :disabled="!canPropose"
+            @click="handleProposeSwap"
+          >
+            {{ proposing ? 'Sending...' : 'Propose Swap' }}
+          </button>
+        </section>
+
+        <section class="info-section">
+          <div class="info-box">
+            <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            <div class="info-content">
+              <h4>How it works</h4>
+              <p>Select one of your shifts, pick a colleague, then choose which of their shifts you'd like to swap for. Once proposed, your colleague and manager will be notified.</p>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <!-- HISTORY TAB -->
+      <template v-if="activeTab === 'history'">
+        <section class="section">
+          <div v-if="swapHistory.length" class="colleagues-list">
+            <div v-for="sw in swapHistory" :key="sw.id" class="colleague-card">
+              <div class="colleague-info">
+                <div>
+                  <h4 class="colleague-name">{{ sw.requester }} &harr; {{ sw.target }}</h4>
+                  <p class="colleague-availability">{{ sw.createdAt }}</p>
+                </div>
+              </div>
+              <span
+                class="badge"
+                :class="{
+                  'badge-light-blue': sw.status === 'PENDING',
+                  'badge-success': sw.status === 'ACCEPTED',
+                  'badge-danger': sw.status === 'REJECTED' || sw.status === 'CANCELLED'
+                }"
+              >{{ sw.status }}</span>
+            </div>
+          </div>
+          <p v-else style="color:var(--text-muted);font-size:0.9rem;">No swap history yet.</p>
+        </section>
+      </template>
 
     </div>
   </WorkerLayout>
+
+  <ConfirmModal
+    :is-open="showModal"
+    :title="modalSuccess ? 'Swap Proposed!' : 'Error'"
+    :message="modalMessage"
+    :type="modalSuccess ? 'success' : 'danger'"
+    @close="showModal = false"
+  />
 </template>
 
 <style scoped>
-/* --- Design Variables --- */
-:root {
-  --primary: #0B57D0; /* Deep blue */
-  --primary-hover: #0842A0;
-  --primary-light: #E8F0FE;
-  
-  --bg-main: #FAFAFB; /* Very light grey body background */
-  --bg-card: #FFFFFF;
-  
-  --text-dark: #111827;
-  --text-muted: #6B7280;
-  --border: #E5E7EB;
-}
 
 /* --- Main Content --- */
 .main-content {
@@ -248,23 +356,40 @@ const handleProposeSwap = (colleague) => {
   text-decoration: underline;
 }
 
-/* --- Current Shift Card --- */
-.current-shift-card {
-  display: flex;
-  background-color: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-}
-
-.shift-info {
-  flex: 1;
-  padding: 2rem;
+/* --- Shift Select Cards --- */
+.shift-select-list {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.shift-select-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shift-select-card:hover {
+  border-color: var(--primary);
+  background-color: #F8FAFC;
+}
+
+.shift-select-card.selected {
+  border-color: var(--primary);
+  background-color: #EEF2FF;
+}
+
+.shift-select-label {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-dark);
 }
 
 .badge {
@@ -283,44 +408,14 @@ const handleProposeSwap = (colleague) => {
   color: #4338CA;
 }
 
-.badge-urgent {
-  background-color: var(--primary-light);
-  color: var(--primary);
-  padding: 0.25rem 0.5rem;
+.badge-success {
+  background-color: #D1FAE5;
+  color: #065F46;
 }
 
-.shift-date {
-  font-size: 1.5rem;
-  font-weight: 800;
-  margin: 0 0 1rem 0;
-  color: var(--text-dark);
-}
-
-.shift-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--text-muted);
-  font-size: 0.95rem;
-  margin-bottom: 0.5rem;
-}
-
-.shift-meta strong {
-  color: var(--text-dark);
-}
-
-.shift-image {
-  width: 35%;
-  min-width: 250px;
-  padding: 1.5rem;
-  background-color: var(--bg-card); /* Keep white background behind the image padding */
-}
-
-.shift-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 12px;
+.badge-danger {
+  background-color: #FEE2E2;
+  color: #991B1B;
 }
 
 /* --- Colleagues List --- */
@@ -335,13 +430,20 @@ const handleProposeSwap = (colleague) => {
   justify-content: space-between;
   align-items: center;
   background-color: var(--bg-card);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: 12px;
   padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.urgent-border {
-  border-left: 4px solid var(--primary);
+.colleague-card:hover {
+  border-color: var(--primary);
+}
+
+.colleague-card.selected {
+  border-color: var(--primary);
+  background-color: #EEF2FF;
 }
 
 .colleague-info {
@@ -441,18 +543,15 @@ const handleProposeSwap = (colleague) => {
   background-color: #E2E8F0;
 }
 
-.btn-dashed {
+.btn-full {
   width: 100%;
-  background-color: transparent;
-  border: 1.5px dashed #CBD5E1;
-  color: #475569;
   padding: 1rem;
+  font-size: 1rem;
 }
 
-.btn-dashed:hover {
-  background-color: #F8FAFC;
-  border-color: var(--primary);
-  color: var(--primary);
+.btn-full:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .mt-3 { margin-top: 1rem; }
@@ -460,21 +559,10 @@ const handleProposeSwap = (colleague) => {
 
 /* --- Responsive Adjustments --- */
 @media (max-width: 768px) {
-  .current-shift-card {
-    flex-direction: column-reverse;
-  }
-  .shift-image {
-    width: 100%;
-    height: 180px;
-    padding: 1rem;
-  }
   .colleague-card {
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
-  }
-  .btn-primary {
-    width: 100%;
   }
 }
 </style>

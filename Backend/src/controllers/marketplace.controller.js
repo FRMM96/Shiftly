@@ -1,24 +1,13 @@
 const prisma = require("../db/prisma");
+const { createNotification, notifyManagers } = require("../helpers/notification");
 
 exports.listOpenShifts = async (req, res) => {
   const shifts = await prisma.shift.findMany({
-    where: { status: "OPEN" },
+    where: { status: "OPEN", companyId: req.user.companyId },
     orderBy: [{ date: "asc" }, { startTime: "asc" }],
     include: { manager: { select: { id: true, email: true, username: true } } },
   });
   res.json({ shifts });
-};
-
-exports.applyToShift = async (req, res) => {
-  res.status(501).json({ message: "Not implemented yet" });
-};
-
-exports.listApplicants = async (req, res) => {
-  res.status(501).json({ message: "Not implemented yet" });
-};
-
-exports.assignApplicant = async (req, res) => {
-  res.status(501).json({ message: "Not implemented yet" });
 };
 
 exports.applyToShift = async (req, res) => {
@@ -39,9 +28,15 @@ exports.applyToShift = async (req, res) => {
       create: { shiftId: id, userId: req.user.id },
     });
 
+    await notifyManagers(
+      shift.companyId,
+      'APPLICATION',
+      `${req.user.username} applied for ${shift.roleName}`,
+      `/manager/applicants/${shift.id}`
+    );
+
     return res.status(201).json({ application });
   } catch (err) {
-    // Prisma unique constraint etc.
     console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
@@ -112,7 +107,65 @@ exports.assignApplicant = async (req, res) => {
       return { accepted, shift: updatedShift };
     });
 
+    // Notify accepted worker
+    await createNotification(
+      application.userId,
+      shift.companyId,
+      'SHIFT_ASSIGNED',
+      `You were accepted for ${shift.roleName}`,
+      '/worker/calendar'
+    );
+
+    // Notify rejected workers
+    const rejected = await prisma.shiftApplication.findMany({
+      where: { shiftId: id, status: 'REJECTED' },
+      select: { userId: true }
+    });
+    await Promise.all(
+      rejected.map(r =>
+        createNotification(r.userId, shift.companyId, 'APPLICATION_REJECTED', `Your application for ${shift.roleName} was not selected`, '/worker/marketplace')
+      )
+    );
+
     return res.json(result);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.rejectApplicant = async (req, res) => {
+  try {
+    const { id, applicationId } = req.params;
+
+    const shift = await prisma.shift.findUnique({ where: { id } });
+    if (!shift) return res.status(404).json({ message: "Shift not found" });
+    if (shift.managerId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
+
+    const application = await prisma.shiftApplication.findUnique({
+      where: { id: applicationId },
+    });
+    if (!application || application.shiftId !== id) {
+      return res.status(404).json({ message: "Application not found for this shift" });
+    }
+    if (application.status !== "PENDING") {
+      return res.status(400).json({ message: "Only pending applications can be rejected" });
+    }
+
+    const rejectedApp = await prisma.shiftApplication.update({
+      where: { id: applicationId },
+      data: { status: "REJECTED" },
+    });
+
+    await createNotification(
+      application.userId,
+      shift.companyId,
+      'APPLICATION_REJECTED',
+      `Your application for ${shift.roleName} was not selected`,
+      '/worker/marketplace'
+    );
+
+    return res.json({ application: rejectedApp });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Server error" });
