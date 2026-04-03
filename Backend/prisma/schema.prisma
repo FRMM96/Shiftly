@@ -136,7 +136,6 @@ model Shift {
   @@index([managerId])
   @@index([workerId])
   @@index([companyId])
-  @@index([visibility])
 }
 
 model ShiftApplication {
