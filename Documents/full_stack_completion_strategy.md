@@ -1,229 +1,186 @@
-# Full Stack Completion Strategy
+# Full Stack Completion Strategy (Detailed Implementation Guide)
 
 **Shiftly Workforce Management Platform**
-_Strategy to achieve a 100% complete, production-ready Full Stack Application_
+_Technical strategy to achieve a 100% complete, production-ready full stack application._
 
 ---
 
 ## Executive Summary
 
-We have successfully established the foundational architecture: a Vue 3 + Vite frontend (wrapped in Capacitor for mobile) and a Node.js + Express + Prisma backend. The core "Marketplace Loop" is fully wired (Auth, Creating Shifts, Applying, Approving). All secondary flows (Clock In/Out, Time Off, Sick Leave, Shift Swaps) are also connected end-to-end.
+This document serves as the detailed technical companion to `strategy.md`. It outlines the exact files, controllers, stores, and methodologies needed to execute the active roadmap. 
 
-Security hardening (Tier 0-1) is complete: Prisma migrations applied, JWT secret secured, Zod input validation on all endpoints, Helmet security headers, rate limiting on auth, and CORS lockdown.
+The foundational architecture (Vue 3/Vite frontend + Node.js/Prisma backend) is solidly established. The core Marketplace Loop, secondary flows (Clock, Swaps, Time Off), and baseline security measures (Zod, Helmet, Rate Limiting) are complete. Our focus is executing the remaining 7 phases.
 
-The remaining work focuses on **completing the product feature set**, **production deployment**, and **native mobile enhancements**.
-
----
-
-## COMPLETED PHASES
-
-### Phase 1: API Integration Wiring -- DONE
-
-All controllers and frontend views are fully connected with real API calls.
-
-- **Clock In/Out:** `clock.controller` + Worker dashboard buttons wired. Location field accepted (GPS plugin pending Phase 6).
-- **Time Off & Sick Leave:** Full state machines (Pending -> Approved/Denied). Worker forms and Manager review dashboards connected.
-- **Shift Swaps:** 3-step frontend flow (select your shift -> pick colleague -> select their shift) wired to `POST /api/swaps`. History tab shows past swaps.
-- **New endpoint added:** `GET /api/shifts/user/:userId` for fetching a colleague's shifts during swap proposals.
-
-### Phase 1.5: Security Hardening -- DONE
-
-- **Zod validation** on all POST/PATCH endpoints (13 schemas in `Backend/src/schemas.js`)
-- **Helmet** security headers
-- **Rate limiting** (30 req/15min on `/api/auth`)
-- **CORS lockdown** to configured origins (`CORS_ORIGINS` env var)
-- **JWT secret** rotated to cryptographically secure 64-byte hex
-- **Body size limit** (`express.json({ limit: "1mb" })`)
+**Guiding Principle — Local-First Development:** Every feature must be fully functional using only free, local tooling (local PostgreSQL, local filesystem, Docker Compose). No paid cloud service (S3, Supabase, Render, Firebase, etc.) is introduced until the entire feature set is complete, tested, and ready for production. Cloud providers are treated as a deployment-time configuration swap, not a development dependency.
 
 ---
 
-## REMAINING PHASES
+## COMPLETED FOUNDATION
 
-### Phase 2: Analytics & Reporting (Complete the Product)
+- **API Integration Wiring:** All controllers and frontend views are fully connected.
+  - `clock.controller` + Worker dashboard.
+  - Time Off & Sick Leave state machines.
+  - Shift Swaps (3-step flow to `POST /api/swaps`).
+- **Security Hardening:** Prisma migrations applied, Zod validation on 19 schemas (`Backend/src/schemas.js`), Helmet headers, Rate limiting (30/15m on auth), CORS lockdown, express JSON limit (1mb).
+  - **Action Required:** `JWT_SECRET` in `.env` is still a placeholder (`"super_secret_change_me"`). Generate a strong secret via `openssl rand -base64 32` before any production deployment.
+- **Notifications Center:** `NotificationsContent.vue` (shared component) is fully functional with read/unread state, bell icon badge with unread count, tab filtering (All/Unread/Archived), mark-all-read, date grouping, and icon differentiation by type. `notificationStore.js` handles unread count tracking and pagination.
+- **Axios Error Interceptor:** `Frontend/src/services/api.js` includes a response interceptor that handles 401 errors (clears token, redirects to `/login`).
+- **Capacitor Foundation:** `@capacitor/core`, `@capacitor/android`, and `@capacitor/ios` are installed in the frontend.
+- **Runtime:** Backend uses Express 5.2.1 (note: some middleware APIs differ from Express 4).
 
-The analytics pages exist as scaffolds (KPIs show "---", charts say "Coming soon"). This phase fills them with real data.
+---
 
-#### 2.1 Analytics Backend
+## IMPLEMENTATION PHASES
 
+### Phase 1: Analytics & Reporting (Next Priority)
+
+The analytics pages exist as scaffolds (KPIs show "---"). This phase fills them with real data.
+
+#### 1.1 Analytics Backend
 - **New file:** `Backend/src/controllers/analytics.controller.js`
 - **New file:** `Backend/src/routes/analytics.routes.js`
 - **Endpoints to build:**
-  - `GET /api/analytics/summary` -- KPI cards: total shifts, fill rate, total hours worked, labor cost
-  - `GET /api/analytics/shifts-by-status` -- Breakdown of ACTIVE/OPEN/COMPLETED/CANCELED for chart
-  - `GET /api/analytics/hours-by-week` -- Weekly hours worked (from ClockEvent data) for line chart
-  - `GET /api/analytics/attendance-rate` -- Clock-ins vs. scheduled shifts
-- **Implementation:** Prisma `groupBy`, `count`, `aggregate` queries scoped to the manager's company
+  - `GET /api/analytics/summary` -- KPI cards (total shifts, fill rate, total hours worked, labor cost).
+  - `GET /api/analytics/shifts-by-status` -- Breakdown for charts (ACTIVE, OPEN, CANCELED, COMPLETED).
+  - `GET /api/analytics/hours-by-week` -- Weekly hours worked (aggregated from `ClockEvent`).
+  - `GET /api/analytics/attendance-rate` -- Clock-ins vs. scheduled shifts.
+- **Implementation:** Prisma `groupBy`, `count`, `aggregate` queries, strictly scoped to `companyId`.
 
-#### 2.2 Analytics Frontend
-
+#### 1.2 Analytics Frontend
 - **Files to modify:** `Frontend/src/views/manager/ManagerAnalytics.vue`, `Frontend/src/views/worker/WorkerAnalytics.vue`
-- **Install:** `chart.js` or `apexcharts` + vue wrapper
-- **Create:** `Frontend/src/stores/analyticsStore.js` to fetch and cache analytics data
-- **Manager view:** KPI cards (total shifts, fill rate %, labor cost, avg hours) + bar/line charts
-- **Worker view:** Personal KPIs (hours this week/month, shifts completed, upcoming count) + personal trends chart
+- **Install:** `chart.js` or `apexcharts` (+ Vue wrappers)
+- **Stores:** Create `Frontend/src/stores/analyticsStore.js`
+- **UI:** Render KPI cards and build out the bar/line charts using real Pinia state.
 
 ---
 
-### Phase 3: Document Management & Cloud Storage
+### Phase 2: Document Management & Compliance
 
-The `ManagerDocuments` and `WorkerDocuments` views are empty-state placeholders. This phase adds real file upload/download.
+Expand the `ManagerDocuments` and `WorkerDocuments` placeholder views.
 
-#### 3.1 Cloud Storage Backend
-
-- **Choose provider:** Cloudflare R2 (S3-compatible, no egress fees) or Supabase Storage
-- **Install:** `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`
-- **New file:** `Backend/src/controllers/document.controller.js`
-- **New file:** `Backend/src/routes/document.routes.js`
-- **New Prisma model:** `Document` (id, name, key, contentType, size, uploadedById, companyId, category, timestamps)
+#### 2.1 Local Storage Backend (Local-First)
+- **Approach:** Use `multer` for multipart file uploads, saving to `Backend/uploads/{companyId}/`. Serve files via Express static middleware. Abstract storage behind a thin service layer (`Backend/src/services/storageService.js`) with `save()`, `getUrl()`, `remove()` methods — swap to S3/R2 later by toggling an env flag (`STORAGE_PROVIDER=local|s3`).
+- **Dependencies:** `multer` (local disk). No cloud SDK needed during development.
+- **New files:** `Backend/src/controllers/document.controller.js`, `Backend/src/routes/document.routes.js`, `Backend/src/services/storageService.js`
+- **Prisma updates:** Add `Document` model `(id, name, key, contentType, size, uploadedById, companyId, category)`.
+  - **Note:** This model does not exist yet in `prisma/schema.prisma` — must be added and migrated before any document endpoints can work.
 - **Endpoints:**
-  - `POST /api/documents/upload-url` -- Generate pre-signed upload URL
-  - `GET /api/documents/:id/download-url` -- Generate pre-signed download URL
-  - `GET /api/documents` -- List documents for company (filterable by category: contract, certification, ID, policy)
-  - `DELETE /api/documents/:id` -- Manager-only delete
-- **Env vars:** `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
+  - `POST /api/documents/upload` (Multipart upload via `multer`, returns document metadata)
+  - `GET /api/documents/:id/download` (Serve file from local disk or redirect to signed URL in production)
+  - `GET /api/documents` (List by category, scoped to `companyId`)
+  - `DELETE /api/documents/:id` (Manager only — removes file + DB record)
+- **Cloud Migration Path:** When ready for production, install `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`, set `STORAGE_PROVIDER=s3` and add `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT` env vars. No controller or frontend changes needed.
 
-#### 3.2 Document Frontend
-
+#### 2.2 Document Frontend
 - **Files to modify:** `Frontend/src/views/manager/ManagerDocuments.vue`, `Frontend/src/views/worker/WorkerDocuments.vue`
-- **Create:** `Frontend/src/stores/documentStore.js`
-- **Features:**
-  - File picker with drag-and-drop zone (standard `<input type="file">`)
-  - Upload progress indicator
-  - Document list with category filters (Contracts, Certifications, Policies)
-  - Download button using pre-signed URLs
-  - Manager: can upload company-wide documents and delete any document
-  - Worker: can upload personal documents (ID, certifications) and download company policies
+- **Stores:** Create `Frontend/src/stores/documentStore.js`
+- **UI Details:** Implement drag-and-drop zone using native `<input type="file">`. Build a document list with category tags (Contracts, Certifications). Upload sends multipart `FormData` to `POST /api/documents/upload`.
 
 ---
 
-### Phase 4: Production Deployment
+### Phase 3: Notifications Center Refinement (~90% Complete)
 
-#### 4.1 Docker & Containerization
+The notifications frontend is largely implemented via `NotificationsContent.vue` (shared component used by both manager and worker views), with `notificationStore.js` handling state. Read/unread styling, bell badge, tab filtering, mark-all-read, and "Claim Shift" actions are all functional.
 
-- **New files:** `Backend/Dockerfile`, `docker-compose.yml` (root)
-- **docker-compose services:** `api` (Node.js), `db` (PostgreSQL), `migrate` (one-shot Prisma migration)
-- **Multi-stage Dockerfile:** build stage + slim production image
-- **Health check:** Expand `GET /` to return `{ status: "ok", version, uptime }` for container orchestration probes
+#### 3.1 Remaining Work
+- **Deep-link navigation:** The "View Details" button exists but is not fully wired for all notification types. Clicking a notification should route the user to the relevant context (e.g., "New application received" → `ApplicantReview.vue`, swap approved → `WorkerSwapshift.vue`).
+- **Backend cleanup:** Consolidate duplicate notification controllers. Both `notification.controller.js` and `notifications.controller.js` exist with conflicting field names (`read` vs `isRead`). One must be removed and all references unified.
 
-#### 4.2 CI/CD Pipeline
+---
 
+### Phase 4: Production Deployment Architecture (Local-First)
+
+#### 4.1 Containerization (Local — No Paid Services)
+- **New files:** `Backend/Dockerfile`, `Frontend/Dockerfile`, `docker-compose.yml`
+- **Setup:** Multi-stage Dockerfile for Node API. Separate Dockerfile for Frontend (Nginx serving Vite build output). Compose file includes `api`, `frontend`, `db` (PostgreSQL image), and a `migrate` init container for Prisma migrations.
+- **Goal:** `docker compose up` runs the entire stack locally — anyone can clone the repo and have a working app with zero external accounts.
+
+#### 4.2 CI/CD Pipeline (Free — GitHub Actions)
 - **New file:** `.github/workflows/ci.yml`
-- **Pipeline steps:**
-  1.  Checkout + Node.js setup
-  2.  Install dependencies (Backend + Frontend)
-  3.  Lint (once ESLint is added)
-  4.  Build Frontend (`vite build`)
-  5.  Run tests (once test suite exists)
-- **Deployment trigger:** Auto-deploy on push to `main`
+- **Steps:** Checkout → Setup Node.js → Install dependencies → Build Frontend (`vite build`) → Run Tests.
+- **Note:** GitHub Actions is free for public repos and has generous free-tier minutes for private repos. No paid service needed.
 
-#### 4.3 Backend Deployment
-
-- **Database:** Provision managed PostgreSQL (Neon free tier or Supabase)
-- **API Server:** Deploy to Railway or Render (auto-deploy from GitHub, free tier available)
-- **Environment:** Configure production env vars (DATABASE_URL, JWT_SECRET, CORS_ORIGINS, S3 credentials)
-
-#### 4.4 Frontend Deployment
-
-- **Web:** Connect repo to Vercel or Netlify. Set `VITE_API_BASE_URL` to production API URL.
-- **Mobile:** Capacitor iOS/Android builds are already scaffolded.
-  - Android: `npx cap sync android` -> Build `.aab` in Android Studio -> Upload to Google Play Console
-  - iOS: `npx cap sync ios` -> Archive in Xcode -> Upload to TestFlight
+#### 4.3 Hosting Strategy (Deferred)
+Cloud hosting is a deployment-time decision, not a development blocker. When the full feature set is complete and tested:
+- **Database:** Supabase (free tier) or Neon (free tier) for PostgreSQL.
+- **Backend:** Render (free tier) or Railway. Require env vars: `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGINS`, `STORAGE_PROVIDER`, `S3_BUCKET`.
+- **Frontend:** Vercel (free tier) or Netlify (free tier) pointing `VITE_API_BASE_URL` to production backend url.
+- **Decision deferred until:** All phases 1-5 are complete and tested locally via Docker Compose.
 
 ---
 
-### Phase 5: Code Quality & Testing
+### Phase 5: Testing & Code Quality
 
-#### 5.1 Linting & Formatting
+#### 5.1 Linting
+- **Install & Config:** Add `eslint`, `prettier`, and `eslint-plugin-vue`. Add config files (`.eslintrc.js`, `.prettierrc`) to both Backend and Frontend dirs.
+- **Npm Scripts:** `npm run lint` and `npm run format`.
 
-- **Backend:** Add `eslint` + `prettier` with Node.js config
-- **Frontend:** Add `eslint` + `eslint-plugin-vue` + `prettier`
-- **Add scripts:** `lint`, `lint:fix`, `format` to both `package.json` files
-- **Add:** `.eslintrc.js` and `.prettierrc` to both packages
-
-#### 5.2 Testing
-
-- **Backend:**
-  - Install `vitest` or `jest` + `supertest`
-  - Integration tests for critical flows: register -> login -> create shift -> apply -> assign
-  - Unit tests for schema validation edge cases
-- **Frontend:**
-  - Install `vitest` + `@vue/test-utils`
-  - Component tests for critical views (login, create shift, marketplace)
-  - Store tests for shiftStore, userStore actions
+#### 5.2 Test Suites
+- **Backend:** Integrate `vitest` + `supertest`. Target integration tests for core flow `register -> login -> create shift -> apply`.
+- **Frontend:** Integrate `vitest` + `@vue/test-utils`. Test components with complex state management (e.g., `shiftStore`).
 
 #### 5.3 Structured Logging
-
-- **Backend:** Replace `console.log/error` with `pino` logger
-- **Format:** JSON structured logs with request ID, user ID, and latency
-- **Benefits:** Machine-parseable logs for production debugging and monitoring
+- **Replace** standard `console.log` with `pino` logger to enable JSON structured logging, easily queried in production environments.
 
 ---
 
-### Phase 6: Native Mobile & Push Notifications
+### Phase 6: Native Mobile Enhancements (Capacitor)
 
-#### 6.1 Geolocation for Clock-In
+Leverage native capabilities as Shiftly operates as an app wrapper. **Note:** `@capacitor/core`, `@capacitor/android`, and `@capacitor/ios` are already installed in the frontend.
 
+#### 6.1 Geolocation (Proof of Work)
 - **Install:** `@capacitor/geolocation`
-- **Frontend:** Auto-capture GPS coordinates when worker taps "Clock In". Pass as `location` field to `POST /api/clock`.
-- **Backend:** Optionally validate location is within acceptable radius of workplace (geofencing).
+- **Implementation:** Modify the Worker dashboard clock-in button to capture GPS coordinates. Send them to `POST /api/clock` as the `location` string.
 
-#### 6.2 Push Notifications via Firebase
-
-- **Backend:**
-  - Install `firebase-admin`
-  - Add `DeviceToken` Prisma model (userId, token, platform)
-  - New endpoints: `POST /api/devices/register`, `DELETE /api/devices/:token`
-  - Update `Backend/src/helpers/notification.js` to also dispatch FCM push when creating DB notifications
-- **Frontend:**
-  - Install `@capacitor/push-notifications`
-  - Register device token on login, send to `POST /api/devices/register`
-  - Handle foreground notifications (in-app banner) and background notifications (system tray)
-- **Trigger events:** Shift assigned, application approved/rejected, swap status change, time-off decision
-
-#### 6.3 Camera & File Capture
-
-- **Install:** `@capacitor/camera`
-- **Use case:** Workers can photograph certifications or IDs directly from the app for document uploads (Phase 3)
+#### 6.2 Push Notifications (Deferred — Local Polling First)
+- **Current state:** In-app notifications already work via `notificationStore` polling. This is sufficient for development and early testing.
+- **Deferred implementation:** When a native mobile build is actually distributed to real devices, add FCM push:
+  - **Backend:** Install `firebase-admin`, introduce `DeviceToken` Prisma model. New endpoints `POST /api/devices/register`. Attach FCM dispatches to the existing `notification.js` helper.
+  - **Frontend:** Install `@capacitor/push-notifications`. Request token on post-login mount. Handle foreground banners and background system tray alerts.
+- **Why deferred:** Firebase adds vendor lock-in and requires a Google Cloud project. The existing polling mechanism covers all dev/testing needs. Push notifications only matter when the app is on real phones.
 
 ---
 
-### Phase 7: Real-time & Offline (Polish)
+### Phase 7: Real-Time Sync & Quality of Life
 
-#### 7.1 Real-time Data Sync
-
-- **Install:** `socket.io` (backend) + `socket.io-client` (frontend)
-- **Backend:** Attach Socket.io to the Express HTTP server in `app.js`. Emit events when:
-  - A worker applies for a shift (manager dashboard updates instantly)
-  - A shift is assigned (worker calendar updates)
-  - A notification is created (bell badge increments without polling)
-- **Frontend:** Connect socket in `main.js` after login. Listen for events and update Pinia stores reactively.
+#### 7.1 WebSockets for Live Updates
+- **Install:** `socket.io` (backend) + `socket.io-client` (frontend).
+- **Implementation:** Attach `socket.io` to Express `app.js`. Broadcast events on application logic (shift applied, swap approved) so UI reactive state (`Pinia`) updates immediately without manual polling.
 
 #### 7.2 Offline Caching
-
 - **Install:** `@capacitor/preferences`
-- **Frontend:** Cache the worker's upcoming schedule and recent notifications in device storage
-- **Sync strategy:** Show cached data immediately, fetch fresh data in background, merge on arrival
-- **Offline indicator:** Display a banner when the device loses connectivity
+- **Implementation:** Store upcoming schedule and user context. Ensure the worker can still see "Where do I work today?" even with no network connection.
 
-#### 7.3 Skeleton Loaders & Global Error Toasts
-
-- **Skeleton loaders:** Replace text spinners ("Loading...") with animated placeholder cards that match the layout of the real content
-- **Global error toast:** Add an Axios response interceptor that shows a toast component for network errors, 500s, and session expiry (beyond the existing 401 redirect)
-- **Component:** Create `Frontend/src/components/shared/Toast.vue` with auto-dismiss
+#### 7.3 Global Error Handling (Partially Implemented)
+- **Already done:** `Frontend/src/services/api.js` has an axios response interceptor that catches `401` errors (clears token, redirects to `/login`).
+- **Remaining:** Extend the interceptor to handle `500` server errors and network failures by driving a global `<Toast />` component, so error states never silently fail in the background.
 
 ---
 
-## Phase Summary & Priority Order
+---
 
-| Phase | Focus                      | Status   | Priority |
-| ----- | -------------------------- | -------- | -------- |
-| 1     | API Integration Wiring     | DONE     | --       |
-| 1.5   | Security Hardening         | DONE     | --       |
-| **2** | **Analytics & Reporting**  | **Next** | **High** |
-| **3** | **Document Management**    | Planned  | **High** |
-| **4** | **Production Deployment**  | Planned  | **High** |
-| 5     | Code Quality & Testing     | Planned  | Medium   |
-| 6     | Native Mobile & Push       | Planned  | Medium   |
-| 7     | Real-time & Offline Polish | Planned  | Low      |
+### Known Bugs & Cleanup (Pre-Requisite)
 
-**Recommended next step:** Phase 2 (Analytics) -- it completes the product feature set that users will see, and the backend aggregation queries are straightforward Prisma calls.
+These issues were identified during an April 2026 codebase audit and should be resolved before or alongside Phase 1 work.
+
+| # | Issue | Severity | Details |
+|---|-------|----------|---------|
+| 1 | **Duplicate notification controllers** | High | Both `notification.controller.js` and `notifications.controller.js` exist with different field names (`read` vs `isRead`). Consolidate into one and remove the duplicate routes. |
+| 2 | **Prisma schema index bug** | Medium | `Shift` model has `@@index([visibility])` but no `visibility` field is defined. Remove the orphaned index or add the field. |
+| 3 | **JWT_SECRET placeholder** | Critical | `.env` contains `"super_secret_change_me"`. Must be replaced with a cryptographically random value before any deployment. |
+| 4 | **Dead file** | Low | `Backend/src/somthing.js` is an empty file with a typo in the name. Delete it. |
+
+---
+
+## Summary & Priority Order
+
+| Phase | Focus                        | Priority | Status       |
+| ----- | ---------------------------- | -------- | ------------ |
+| **--**| Known Bugs & Cleanup         | Critical | Not started  |
+| **1** | Analytics & Reporting        | High     | Complete     |
+| **2** | Document Management          | High     | Not started  |
+| **3** | Notifications Center         | High     | ~90% done    |
+| **4** | Production Deployment        | Medium   | Not started  |
+| **5** | Testing & Code Quality       | Medium   | Not started  |
+| **6** | Native Mobile Enhancements   | Medium   | Not started  |
+| **7** | Real-Time Sync & QoL         | Low      | Partial (7.3)|
