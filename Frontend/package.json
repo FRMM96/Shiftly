@@ -20,10 +20,12 @@
     "axios": "^1.13.6",
     "bootstrap": "^5.3.8",
     "bootstrap-vue-next": "^0.42.0",
+    "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",
     "pinia": "^3.0.4",
     "vite": "^7.3.0",
     "vue": "^3.5.26",
+    "vue-chartjs": "^5.3.3",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
