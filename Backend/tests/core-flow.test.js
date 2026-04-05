@@ -62,18 +62,24 @@ describe('Core flow: register → login → create shift → apply', () => {
   // --- Worker applies to the shift ---
   it('worker applies to the open shift', async () => {
     const res = await request(app)
-      .post(`/api/marketplace/${shiftId}/apply`)
+      .post(`/api/marketplace/shifts/${shiftId}/apply`)
       .set('Authorization', `Bearer ${workerToken}`)
     expect(res.status).toBe(201)
     expect(res.body.application).toBeDefined()
   })
 
-  // --- Worker cannot apply twice ---
-  it('rejects duplicate application', async () => {
+  // --- Duplicate apply is idempotent (upsert) ---
+  it('duplicate apply is idempotent', async () => {
     const res = await request(app)
-      .post(`/api/marketplace/${shiftId}/apply`)
+      .post(`/api/marketplace/shifts/${shiftId}/apply`)
       .set('Authorization', `Bearer ${workerToken}`)
-    // Should be a 400 or 409
-    expect(res.status).toBeGreaterThanOrEqual(400)
+    expect(res.status).toBe(201)
+    expect(res.body.application).toBeDefined()
+  })
+
+  // --- Unauthenticated access is blocked ---
+  it('rejects unauthenticated shift creation', async () => {
+    const res = await request(app).post('/api/shifts').send({ business: 'X', roleName: 'Y', date: '2026-01-01', startTime: '09:00', endTime: '17:00' })
+    expect(res.status).toBe(401)
   })
 })

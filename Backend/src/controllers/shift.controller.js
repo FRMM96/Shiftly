@@ -39,7 +39,7 @@ async function assertEmployeeExistsInMyCompany(workerId, companyId) {
 
 exports.createShift = async (req, res) => {
   try {
-    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status, location, notes, visibility } = req.body;
+    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status } = req.body;
     const hasAssignedWorker = !!workerId;
 
     if (!business || !roleName || !date || !startTime || !endTime) {
@@ -60,30 +60,18 @@ exports.createShift = async (req, res) => {
       await assertEmployeeExistsInMyCompany(workerId, req.user.companyId);
     }
 
-    const finalVisibility = hasAssignedWorker
-      ? "COMPANY"
-      : (visibility === "COMPANY" ? "COMPANY" : "GLOBAL");
-
-    const finalStatus = hasAssignedWorker
-      ? "ACTIVE"
-      : (status === "OPEN" || !status ? "OPEN" : status);
-
     const shift = await prisma.shift.create({
       data: {
         business,
-        location: location || null,
-        notes: notes || null,
         roleName,
         date: dt,
         startTime,
         endTime,
         pay: pay || null,
         priority: finalPriority,
-
         status: willBeOpen ? "OPEN" : "ACTIVE",
-
         managerId: req.user.id,
-        companyId: finalVisibility === "GLOBAL" ? null : req.user.companyId,
+        companyId: req.user.companyId,
         workerId: hasAssignedWorker ? workerId : null,
       },
       include: {
@@ -98,25 +86,6 @@ exports.createShift = async (req, res) => {
         `New open shift: ${roleName} on ${date}`,
         '/worker/marketplace'
       );
-
-      if (shift.visibility === "GLOBAL" && shift.status === "OPEN") {
-        const employees = await prisma.user.findMany({
-          where: { role: "EMPLOYEE" },
-          select: { id: true, email: true, username: true }
-        })
-
-        if (employees.length > 0) {
-          await prisma.notification.createMany({
-            data: employees.map(emp => ({
-              userId: emp.id,
-              type: "GLOBAL_SHIFT_POSTED",
-              title: "New global shift posted",
-              message: `${shift.roleName} at ${shift.business} on ${new Date(shift.date).toISOString().slice(0, 10)} (${shift.startTime}-${shift.endTime})`,
-              link: "/worker/marketplace"
-            }))
-          })
-        }
-      }
     }
 
     return res.status(201).json({ shift });
@@ -203,8 +172,7 @@ exports.getShift = async (req, res) => {
     if (req.user.role === "EMPLOYEE") {
       const canSee =
         shift.workerId === req.user.id ||
-        (shift.visibility === "GLOBAL" && shift.status === "OPEN") ||
-        (shift.companyId === req.user.companyId);
+        shift.companyId === req.user.companyId;
 
       if (!canSee) {
         return res.status(403).json({ message: "Forbidden" });
@@ -226,13 +194,11 @@ exports.updateShift = async (req, res) => {
     if (!existing) return res.status(404).json({ message: "Shift not found" });
     if (existing.managerId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
 
-    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status, location, notes, visibility } = req.body;
+    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status } = req.body;
 
     const data = {};
 
     if (business !== undefined) data.business = business;
-    if (location !== undefined) data.location = location || null;
-    if (notes !== undefined) data.notes = notes || null;
     if (roleName !== undefined) data.roleName = roleName;
     if (startTime !== undefined) data.startTime = startTime;
     if (endTime !== undefined) data.endTime = endTime;
@@ -253,26 +219,10 @@ exports.updateShift = async (req, res) => {
       if (workerId) {
         await assertEmployeeExistsInMyCompany(workerId, req.user.companyId);
         data.workerId = workerId;
-        data.visibility = "COMPANY";
-        data.companyId = req.user.companyId;
         data.status = "ACTIVE";
       } else {
         data.workerId = null;
       }
-    }
-
-    if (visibility !== undefined && !data.workerId) {
-      const nextVisibility = visibility === "COMPANY" ? "COMPANY" : "GLOBAL";
-      data.visibility = nextVisibility;
-      data.companyId = nextVisibility === "GLOBAL" ? null : req.user.companyId;
-      if (nextVisibility === "GLOBAL" && data.status === undefined) {
-        data.status = "OPEN";
-      }
-    }
-
-    if (data.status === "OPEN" && !data.workerId && data.visibility === undefined) {
-      data.visibility = existing.visibility || "GLOBAL";
-      data.companyId = data.visibility === "GLOBAL" ? null : req.user.companyId;
     }
 
     const shift = await prisma.shift.update({

@@ -3,33 +3,36 @@ const prisma = require("../db/prisma");
 const { createNotification, notifyManagers } = require("../helpers/notification");
 
 exports.listOpenShifts = async (req, res) => {
-  const shifts = await prisma.shift.findMany({
-    where: { status: "OPEN", companyId: req.user.companyId },
-    orderBy: [{ date: "asc" }, { startTime: "asc" }],
-    include: { manager: { select: { id: true, email: true, username: true } } },
-  });
-  res.json({ shifts });
   try {
     const shifts = await prisma.shift.findMany({
-      where: {
-        status: "OPEN",
-        OR: [
-          { visibility: "GLOBAL" },
-          { companyId: req.user.companyId, visibility: "COMPANY" },
-        ],
-      },
+      where: { status: "OPEN", companyId: req.user.companyId },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
-      include: {
-        manager: { select: { id: true, email: true, username: true } },
-      },
+      include: { manager: { select: { id: true, email: true, username: true } } },
     });
-
     res.json({ shifts });
   } catch (err) {
     logger.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
+exports.listMyApplications = async (req, res) => {
+  try {
+    const applications = await prisma.shiftApplication.findMany({
+      where: { userId: req.user.id },
+      orderBy: { appliedAt: 'desc' },
+      include: {
+        shift: {
+          select: { id: true, business: true, roleName: true, date: true, startTime: true, endTime: true, status: true },
+        },
+      },
+    })
+    return res.json({ applications })
+  } catch (err) {
+    logger.error(err)
+    return res.status(500).json({ message: 'Server error' })
+  }
+}
 
 exports.applyToShift = async (req, res) => {
   try {
@@ -43,11 +46,7 @@ exports.applyToShift = async (req, res) => {
     if (!shift) return res.status(404).json({ message: "Shift not found" });
     if (shift.status !== "OPEN") return res.status(400).json({ message: "Shift is not open" });
 
-    const canApply =
-      shift.visibility === "GLOBAL" ||
-      (shift.visibility === "COMPANY" && shift.companyId === req.user.companyId);
-
-    if (!canApply) {
+    if (shift.companyId !== req.user.companyId) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
