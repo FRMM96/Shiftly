@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
 import CalendarGrid from '../../components/worker/WorkerCalendar.vue'
-import { apiFetch } from '../../lib/api'
+import api from '../../services/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,9 +16,9 @@ const selected = ref([])
 
 onMounted(async () => {
   try {
-    const res = await apiFetch(`/api/users/${route.params.id}`)
-    worker.value = res.user
-    schedule.value = (res.shifts || []).map(s => ({
+    const res = await api.get(`/users/${route.params.id}`)
+    worker.value = res.data.user
+    schedule.value = (res.data.shifts || []).map(s => ({
       id: s.id,
       date: new Date(s.date).toISOString().slice(0, 10),
       role: s.roleName,

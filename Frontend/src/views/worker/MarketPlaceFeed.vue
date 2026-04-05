@@ -94,20 +94,15 @@ const handleApply = async (shift) => {
   if (!confirm(`Apply for ${shift.title} at ${shift.company}?`)) return
   applying.value = true
   try {
-    await shiftStore.fetchMarketplace()
+    await shiftStore.applyToShift(shift.id)
+    modalSuccess.value = true
+    modalMessage.value = 'Application sent successfully.'
   } catch (e) {
-    error.value = e.message || 'Failed to load marketplace shifts'
+    modalSuccess.value = false
+    modalMessage.value = e.message || 'Failed to apply'
   } finally {
-    loading.value = false
-  }
-}
-
-async function handleApply(shiftId) {
-  try {
-    await shiftStore.applyToShift(shiftId)
-    alert('Application sent successfully.')
-  } catch (e) {
-    alert(e.message || 'Failed to apply')
+    applying.value = false
+    showModal.value = true
   }
 }
 
@@ -238,15 +233,17 @@ const filteredShifts = computed(() => {
 
             <p v-if="shift.notes" class="notes">{{ shift.notes }}</p>
           </div>
+        </div>
+      </div>
 
-  <ConfirmModal
-    :is-open="showModal"
-    :title="modalSuccess ? 'Applied!' : 'Error'"
-    :message="modalMessage"
-    :type="modalSuccess ? 'success' : 'danger'"
-    @close="closeModal"
-  />
-
+    <ConfirmModal
+      :is-open="showModal"
+      :title="modalSuccess ? 'Applied!' : 'Error'"
+      :message="modalMessage"
+      :type="modalSuccess ? 'success' : 'danger'"
+      @close="showModal = false"
+    />
+  </WorkerLayout>
 </template>
 
 <style scoped>

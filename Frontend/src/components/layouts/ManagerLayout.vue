@@ -21,8 +21,6 @@ onMounted(() => {
 
 const currentUser = computed(() => ({
   name: userStore.user?.username || 'Manager',
-  role: userStore.user?.role || 'BOSS',
-  avatar: userStore.user ? `https://i.pravatar.cc/150?u=${userStore.user.id}` : 'https://i.pravatar.cc/150?u=default'
   role: userStore.user?.company?.name || userStore.user?.role || 'BOSS',
   avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userStore.user?.username || 'Manager')}&background=0B1736&color=fff`
 }))
