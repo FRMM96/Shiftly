@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require('../db/prisma')
 
 exports.listNotifications = async (req, res) => {
@@ -23,7 +24,7 @@ exports.listNotifications = async (req, res) => {
 
     return res.json({ notifications, total, unread })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -36,7 +37,7 @@ exports.markAllAsRead = async (req, res) => {
     })
     return res.json({ ok: true })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -53,7 +54,7 @@ exports.markAsRead = async (req, res) => {
     await prisma.notification.update({ where: { id }, data: { read: true } })
     return res.json({ ok: true })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }

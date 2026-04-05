@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require('../db/prisma')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
@@ -156,7 +157,7 @@ exports.register = async (req, res) => {
 
     return res.status(201).json(payload)
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -183,7 +184,7 @@ exports.login = async (req, res) => {
 
     return res.json({ token, user: safeUser })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }

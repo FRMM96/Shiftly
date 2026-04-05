@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require('../db/prisma')
 const { createNotification, notifyManagers } = require('../helpers/notification')
 
@@ -55,7 +56,7 @@ exports.proposeSwap = async (req, res) => {
 
     return res.status(201).json({ swap })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -82,7 +83,7 @@ exports.listSwaps = async (req, res) => {
 
     return res.json({ swaps })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -138,7 +139,7 @@ exports.updateSwap = async (req, res) => {
 
     return res.json({ swap: updated })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }

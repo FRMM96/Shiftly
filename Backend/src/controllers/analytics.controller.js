@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require("../db/prisma");
 
 /**

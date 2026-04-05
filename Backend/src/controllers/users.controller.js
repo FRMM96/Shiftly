@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require("../db/prisma");
 
 exports.listUsers = async (req, res) => {
@@ -24,7 +25,7 @@ exports.listUsers = async (req, res) => {
 
     return res.json({ users });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -62,7 +63,7 @@ exports.getUserDetails = async (req, res) => {
 
     return res.json({ user, shifts });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };

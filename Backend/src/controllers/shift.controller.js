@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require("../db/prisma");
 const { notifyWorkers } = require("../helpers/notification");
 
@@ -130,7 +131,7 @@ exports.createShift = async (req, res) => {
               <p>Log in to Shiftly to apply.</p>
             `
           }).catch(err => {
-            console.error('Email send failed:', err.message)
+            logger.error('Email send failed:', err.message)
           })
         }
       }
@@ -138,7 +139,7 @@ exports.createShift = async (req, res) => {
 
     return res.status(201).json({ shift });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(err.statusCode || 500).json({ message: err.message || "Server error" });
   }
 };
@@ -172,7 +173,7 @@ exports.listManagerShifts = async (req, res) => {
 
     return res.json({ shifts });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -192,7 +193,7 @@ exports.listMyShifts = async (req, res) => {
 
     return res.json({ shifts });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -230,7 +231,7 @@ exports.getShift = async (req, res) => {
 
     return res.json({ shift });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -311,7 +312,7 @@ exports.updateShift = async (req, res) => {
 
     return res.json({ shift });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(err.statusCode || 500).json({ message: err.message || "Server error" });
   }
 };
@@ -341,7 +342,7 @@ exports.listUserShifts = async (req, res) => {
 
     return res.json({ shifts });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -357,7 +358,7 @@ exports.deleteShift = async (req, res) => {
     await prisma.shift.delete({ where: { id } });
     return res.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };

@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require("../db/prisma");
 const { createNotification, notifyManagers } = require("../helpers/notification");
 
@@ -25,7 +26,7 @@ exports.listOpenShifts = async (req, res) => {
 
     res.json({ shifts });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -65,7 +66,7 @@ exports.applyToShift = async (req, res) => {
 
     return res.status(201).json({ application });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -90,7 +91,7 @@ exports.listApplicants = async (req, res) => {
 
     return res.json({ applicants });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -170,7 +171,7 @@ exports.assignApplicant = async (req, res) => {
 
     return res.json(result);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -208,7 +209,7 @@ exports.rejectApplicant = async (req, res) => {
 
     return res.json({ application: rejectedApp });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };

@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require('../db/prisma')
 const { createNotification, notifyManagers } = require('../helpers/notification')
 
@@ -43,7 +44,7 @@ exports.createTimeOff = async (req, res) => {
 
     return res.status(201).json({ request })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -67,7 +68,7 @@ exports.listTimeOff = async (req, res) => {
 
     return res.json({ requests })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -101,7 +102,7 @@ exports.updateTimeOff = async (req, res) => {
 
     return res.json({ request })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }

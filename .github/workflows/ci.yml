@@ -8,11 +8,31 @@ on:
 
 jobs:
   backend:
-    name: Backend — Lint & Build
+    name: Backend — Lint & Test
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: Backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shiftly_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shiftly_test?schema=public
+      JWT_SECRET: ci-test-secret
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,15 +41,12 @@ jobs:
           cache: npm
           cache-dependency-path: Backend/package-lock.json
       - run: npm ci
-      - run: npx prisma generate
-      - run: node -e "require('./app.js')" &
-        env:
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
-          JWT_SECRET: "ci-test-secret"
-          PORT: 4000
+      - run: npx prisma migrate deploy
+      - run: npm run lint
+      - run: npm test
 
   frontend:
-    name: Frontend — Build
+    name: Frontend — Lint, Test & Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,6 +59,8 @@ jobs:
           cache: npm
           cache-dependency-path: Frontend/package-lock.json
       - run: npm ci
+      - run: npm run lint
+      - run: npm test
       - run: npm run build
         env:
           VITE_API_BASE_URL: http://localhost:4000/api

@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const multer = require("multer");
 const prisma = require("../db/prisma");
 const storage = require("../services/storageService");
@@ -45,7 +46,7 @@ async function uploadDocument(req, res) {
 
     res.status(201).json(doc);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(err.statusCode || 500).json({ message: err.message || "Upload failed" });
   }
 }
@@ -65,7 +66,7 @@ async function listDocuments(req, res) {
 
     res.json(documents);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ message: "Server error" });
   }
 }
@@ -84,7 +85,7 @@ async function downloadDocument(req, res) {
     res.setHeader("Content-Disposition", `attachment; filename="${doc.name}"`);
     res.sendFile(filePath);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ message: "Server error" });
   }
 }
@@ -103,7 +104,7 @@ async function deleteDocument(req, res) {
 
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ message: "Server error" });
   }
 }
