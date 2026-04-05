@@ -15,6 +15,7 @@ const sickRoutes = require("./src/routes/sick.routes");
 const clockRoutes = require("./src/routes/clock.routes");
 const swapRoutes = require("./src/routes/swap.routes");
 const analyticsRoutes = require("./src/routes/analytics.routes");
+const documentRoutes = require("./src/routes/document.routes");
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use("/api/sick", sickRoutes);
 app.use("/api/clock", clockRoutes);
 app.use("/api/swaps", swapRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/documents", documentRoutes);
 
 // Helpful: basic 404
 app.use((req, res) => res.status(404).json({ message: "Not found" }));

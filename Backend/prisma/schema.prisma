@@ -70,6 +70,7 @@ model Company {
   sickLeaves        SickLeave[]
   clockEvents       ClockEvent[]
   shiftSwapRequests ShiftSwapRequest[]
+  documents         Document[]
 }
 
 model User {
@@ -97,6 +98,7 @@ model User {
   clockEvents         ClockEvent[]
   swapRequestsMade    ShiftSwapRequest[] @relation("SwapRequester")
   swapRequestsReceived ShiftSwapRequest[] @relation("SwapTarget")
+  documents            Document[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -228,6 +230,26 @@ model ClockEvent {
   @@index([userId])
   @@index([shiftId])
   @@index([companyId])
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  name        String
+  key         String
+  contentType String
+  size        Int
+  category    String   @default("General")
+
+  uploadedById String
+  uploadedBy   User    @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  companyId    String
+  company      Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([uploadedById])
+  @@index([category])
 }
 
 model ShiftSwapRequest {

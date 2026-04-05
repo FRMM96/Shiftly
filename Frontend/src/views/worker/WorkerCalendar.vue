@@ -252,8 +252,7 @@ onMounted(() => {
           </template>
         </div>
       </div>
-    </div>
-  </WorkerLayout>
+    </WorkerLayout>
 </template>
 
 <style scoped>

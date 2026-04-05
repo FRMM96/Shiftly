@@ -5,11 +5,11 @@ import StatusBadge from '../../components/shared/StatusBadge.vue'
 import WorkerShiftCard from '../../components/shared/WorkerShiftCard.vue'
 import ConfirmModal from '../../components/shared/ConfirmModal.vue'
 import { useRouter } from 'vue-router'
-import WorkerLayout from '../../components/layouts/WorkerLayout.vue'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useShiftStore } from '../../stores/shiftStore'
 import { useUserStore } from '../../stores/userStore'
 import { useWorkerStore } from '../../stores/workerStore'
+import { useNotificationStore } from '../../stores/notificationStore'
 import api from '../../services/api'
 
 const notificationStore = useNotificationStore()
@@ -35,6 +35,12 @@ const user = computed(() => ({
   name: userStore.user?.username || 'Worker',
   scheduledShiftsCount: scheduleStore.mySchedule.length
 }))
+
+const latestNotification = computed(() => {
+  return notificationStore.notifications && notificationStore.notifications.length > 0
+    ? notificationStore.notifications[0]
+    : null
+})
 
 const stats = computed(() => ({
   hours: `${workerStore.workerStats.hours}h`,
@@ -98,7 +104,7 @@ const pendingApplications = computed(() => {
   <WorkerLayout>
     <div class="page">
       <div class="welcome-section">
-        <h1>Welcome back, {{ user.username || 'Worker' }}</h1>
+        <h1>Welcome back, {{ user.name }}</h1>
         <p>You have {{ upcomingShifts.length }} scheduled shifts.</p>
       </div>
 
@@ -111,101 +117,72 @@ const pendingApplications = computed(() => {
       </div>
 
       <div v-if="nextShift" class="next-shift-card">
-        <div>
-          <div class="small-label">NEXT SHIFT</div>
-          <h3>{{ nextShift.role }}</h3>
-          <p>{{ nextShift.date }} • {{ nextShift.time }}</p>
-          <p>{{ nextShift.business }}</p>
+        <div class="next-shift-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
         </div>
-
-        <div class="next-shift-card">
-          <div class="next-shift-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-          </div>
-          <div class="next-shift-info">
-            <span class="alert-label">NEXT SHIFT</span>
-            <h3 v-if="nextShift">{{ nextShift.roleName || nextShift.role || 'Shift' }} — {{ nextShift.date }}</h3>
-            <h3 v-else>No upcoming shifts</h3>
-            <p v-if="nextShift">{{ nextShift.startTime }} – {{ nextShift.endTime }}. Remember to clock in via the app.</p>
-            <p v-else>Check the marketplace for available shifts.</p>
-          </div>
-          <div class="next-shift-actions">
-            <button class="btn btn-primary" :disabled="clockingIn" @click="handleClockIn">
-              {{ clockingIn ? 'Clocking In...' : 'Clock In' }}
-            </button>
-          </div>
+        <div class="next-shift-info">
+          <span class="alert-label">NEXT SHIFT</span>
+          <h3>{{ nextShift.roleName || nextShift.role || 'Shift' }} — {{ nextShift.date }}</h3>
+          <p>{{ nextShift.startTime || nextShift.time }} – {{ nextShift.endTime || 'TBD' }}. Remember to clock in via the app.</p>
         </div>
+        <div class="next-shift-actions">
+          <button class="btn btn-primary" :disabled="clockingIn" @click="handleClockIn">
+            {{ clockingIn ? 'Clocking In...' : 'Clock In' }}
+          </button>
+        </div>
+      </div>
 
-          <div v-if="scheduleStore.loading">Loading shifts…</div>
-          <div v-else-if="scheduleStore.error">{{ scheduleStore.error }}</div>
-          <div v-else-if="upcomingShifts.length === 0">No shifts assigned yet.</div>
+      <div class="dashboard-grid">
+        <section class="shifts-section card">
+          <div class="section-header">
+            <h2>Upcoming Shifts (7 Days)</h2>
+            <router-link to="/worker/calendar" class="link">View Calendar</router-link>
+          </div>
+          
+          <div class="shifts-list">
+            <p v-if="scheduleStore.loading" style="color:var(--text-muted);font-size:0.9rem;">Loading shifts...</p>
+            <p v-else-if="!scheduleStore.loading && upcomingShifts.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No upcoming shifts found.</p>
+            <WorkerShiftCard v-else v-for="shift in upcomingShifts" :key="shift.id" :shift="shift" />
+          </div>
+        </section>
 
-          <div v-else class="list">
-            <div v-for="shift in upcomingShifts" :key="shift.id" class="list-item">
-              <div>
-                <strong>{{ shift.role }}</strong>
-                <div>{{ shift.date }} • {{ shift.time }}</div>
-                <div>{{ shift.business }}</div>
+        <section class="applications-section card">
+          <div class="section-header">
+            <h2>Pending Applications</h2>
+            <router-link to="/worker/applications" class="link">View All</router-link>
+          </div>
+          
+          <div class="applications-list">
+            <p v-if="shiftStore.loading" style="color:var(--text-muted);font-size:0.9rem;">Loading applications...</p>
+            <p v-else-if="!shiftStore.loading && pendingApplications.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No pending applications.</p>
+            <div v-for="app in pendingApplications" :key="app.id" class="app-card">
+              <h4>{{ app.title }}</h4>
+              <p class="company">{{ app.company }}</p>
+              <div class="app-meta">
+                <div class="meta-left">
+                  <StatusBadge :text="app.status" :type="app.statusType" />
+                </div>
+                <span class="applied-time">Applied {{ app.appliedDays }} days ago</span>
+              </div>
+              <div class="app-footer">
+                <span class="pay-rate">{{ app.pay }}</span>
+                <button class="btn btn-sm" :class="app.actionType === 'solid' ? 'btn-primary' : 'btn-outline'">
+                  {{ app.actionText }}
+                </button>
               </div>
             </div>
           </div>
         </section>
+      </div>
 
-        <section class="card">
-          <div class="section-header">
-            <h2>My Applications</h2>
-            <router-link to="/worker/applications">View All</router-link>
-          </div>
-
-        <div class="dashboard-grid">
-          
-          <section class="shifts-section">
-            <div class="section-header">
-              <h2>Upcoming Shifts (7 Days)</h2>
-              <router-link to="/worker/calendar" class="link">View Calendar</router-link>
-            </div>
-            
-            <div class="shifts-list">
-              <p v-if="!scheduleStore.loading && upcomingShifts.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No upcoming shifts found.</p>
-              <WorkerShiftCard v-for="shift in upcomingShifts" :key="shift.id" :shift="shift" />
-            </div>
-          </section>
-
-          <section class="applications-section">
-            <div class="section-header">
-              <h2>Pending Applications</h2>
-            </div>
-            
-            <div class="applications-list">
-              <p v-if="!shiftStore.loading && pendingApplications.length === 0" style="color:var(--text-muted);font-size:0.9rem;">No pending applications.</p>
-              <div v-for="app in pendingApplications" :key="app.id" class="app-card">
-                <h4>{{ app.title }}</h4>
-                <p class="company">{{ app.company }}</p>
-                <div class="app-meta">
-                  <div class="meta-left">
-                    <StatusBadge :text="app.status" :type="app.statusType" />
-                  </div>
-                  <span class="applied-time">Applied {{ app.appliedDays }} days ago</span>
-                </div>
-                <div class="app-footer">
-                  <span class="pay-rate">{{ app.pay }}</span>
-                  <button class="btn btn-sm" :class="app.actionType === 'solid' ? 'btn-primary' : 'btn-outline'">
-                    {{ app.actionText }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <ConfirmModal
-          v-if="showModal"
-          :title="modalSuccess ? 'Success' : 'Error'"
-          :message="modalMessage"
-          @close="showModal = false"
-          @confirm="showModal = false"
-        />
+      <ConfirmModal
+        v-if="showModal"
+        :title="modalSuccess ? 'Success' : 'Error'"
+        :message="modalMessage"
+        @close="showModal = false"
+        @confirm="showModal = false"
+      />
+    </div>
   </WorkerLayout>
 </template>
 

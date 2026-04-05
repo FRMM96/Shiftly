@@ -99,14 +99,13 @@ const goToMarketplace = () => router.push('/worker/marketplace')
         </header>
 
         <main class="content-area">
-          
           <div class="tabs-container">
             <button class="tab" :class="{ active: activeTab === 'pending' }" @click="activeTab = 'pending'">Pending ({{ pendingApps.length }})</button>
             <button class="tab" :class="{ active: activeTab === 'approved' }" @click="activeTab = 'approved'">Approved ({{ approvedApps.length }})</button>
             <button class="tab" :class="{ active: activeTab === 'denied' }" @click="activeTab = 'denied'">Denied ({{ deniedApps.length }})</button>
           </div>
 
-          <div class="section-container">
+          <div v-if="activeTab === 'pending'" class="section-container">
             <div class="section-header">
               <h3>Recent Applications</h3>
               <a class="new-app-link" @click.prevent="goToMarketplace" style="cursor:pointer">
@@ -115,7 +114,8 @@ const goToMarketplace = () => router.push('/worker/marketplace')
               </a>
             </div>
 
-            <div class="card-list">
+            <div v-if="pendingApps.length === 0">No pending applications at the moment.</div>
+            <div v-else class="card-list">
               <div v-for="app in pendingApps" :key="app.id" class="app-card solid-border">
                 <div class="card-left">
                   <div class="icon-wrapper" :class="'bg-' + app.statusType">
@@ -134,13 +134,13 @@ const goToMarketplace = () => router.push('/worker/marketplace')
             </div>
           </div>
 
-      <div class="stats">
-        <div>Pending ({{ pendingApps.length }})</div>
-        <div>Approved ({{ approvedApps.length }})</div>
-        <div>Denied ({{ deniedApps.length }})</div>
-      </div>
-
-            <div class="card-list">
+          <div v-if="activeTab === 'approved'" class="section-container">
+            <div class="section-header">
+              <h3>Approved Applications</h3>
+            </div>
+            
+            <div v-if="approvedApps.length === 0">No approved applications yet.</div>
+            <div v-else class="card-list">
               <div v-for="app in approvedApps" :key="app.id" class="app-card dashed-border">
                 <div class="card-left">
                   <div class="icon-wrapper" :class="'bg-' + app.statusType">
@@ -148,7 +148,7 @@ const goToMarketplace = () => router.push('/worker/marketplace')
                   </div>
                   <div class="app-details">
                     <h4>{{ app.title }}</h4>
-                    <p>Approved on {{ app.date }}</p>
+                    <p>Approved on {{ app.date }} <span class="dot">•</span> Ref: {{ app.refId }}</p>
                   </div>
                 </div>
                 <div class="card-right">
@@ -158,12 +158,13 @@ const goToMarketplace = () => router.push('/worker/marketplace')
             </div>
           </div>
 
-          <div class="section-container">
+          <div v-if="activeTab === 'denied'" class="section-container">
             <div class="section-header muted-header">
               <h3>RECENTLY DENIED</h3>
             </div>
 
-            <div class="card-list">
+            <div v-if="deniedApps.length === 0">No denied applications.</div>
+            <div v-else class="card-list">
               <div v-for="app in deniedApps" :key="app.id" class="app-card dashed-border">
                 <div class="card-left">
                   <div class="icon-wrapper" :class="'bg-' + app.statusType">
@@ -171,7 +172,7 @@ const goToMarketplace = () => router.push('/worker/marketplace')
                   </div>
                   <div class="app-details">
                     <h4>{{ app.title }}</h4>
-                    <p>Denied on {{ app.date }}</p>
+                    <p>Denied on {{ app.date }} <span class="dot">•</span> Ref: {{ app.refId }}</p>
                   </div>
                 </div>
                 <div class="card-right">
@@ -180,20 +181,8 @@ const goToMarketplace = () => router.push('/worker/marketplace')
               </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section class="card">
-        <h2>Denied</h2>
-        <div v-if="deniedApps.length === 0">No denied applications.</div>
-        <div v-else class="list">
-          <div v-for="app in deniedApps" :key="app.id" class="item">
-            <strong>{{ app.shift?.roleName }}</strong>
-            <div>{{ app.shift?.business }}</div>
-            <div>{{ app.shift?.date }} • {{ app.shift?.startTime }} - {{ app.shift?.endTime }}</div>
-          </div>
-        </div>
-      </section>
+        </main>
     </div>
   </WorkerLayout>
 </template>

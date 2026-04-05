@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import ManagerLayout from '../../components/layouts/ManagerLayout.vue'
 import ConfirmModal from '../../components/shared/ConfirmModal.vue'
 import TabBar from '../../components/shared/TabBar.vue'
@@ -7,6 +8,7 @@ import UserAvatar from '../../components/shared/UserAvatar.vue'
 import LoadMoreButton from '../../components/shared/LoadMoreButton.vue'
 import { useShiftStore } from '../../stores/shiftStore'
 
+const router = useRouter()
 const shiftStore = useShiftStore()
 const loading = ref(false)
 const error = ref('')
@@ -140,6 +142,10 @@ const pendingCount = computed(() => {
 const handleViewProfile = (applicantId) => {
   router.push(`/manager/applicants/${applicantId}`)
 }
+
+const closeModal = () => {
+  showModal.value = false
+}
 </script>
 
 <template>
@@ -235,7 +241,7 @@ const handleViewProfile = (applicantId) => {
 
         <LoadMoreButton v-if="activeTab === 'pending'" text="Load More Shifts" />
 
-        <div v-if="row.applicants.length === 0">No applicants yet.</div>
+  </ManagerLayout>
 
   <ConfirmModal
     :is-open="showModal"
