@@ -39,7 +39,8 @@ async function assertEmployeeExistsInMyCompany(workerId, companyId) {
 
 exports.createShift = async (req, res) => {
   try {
-    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status } = req.body;
+    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status, location, notes, visibility } = req.body;
+    const hasAssignedWorker = !!workerId;
 
     if (!business || !roleName || !date || !startTime || !endTime) {
       return res.status(400).json({
@@ -97,41 +98,22 @@ exports.createShift = async (req, res) => {
         `New open shift: ${roleName} on ${date}`,
         '/worker/marketplace'
       );
-        if (shift.visibility === "GLOBAL" && shift.status === "OPEN") {
-      const employees = await prisma.user.findMany({
-        where: { role: "EMPLOYEE" },
-        select: { id: true, email: true, username: true }
-      })
 
-      if (employees.length > 0) {
-        await prisma.notification.createMany({
-          data: employees.map(emp => ({
-            userId: emp.id,
-            type: "GLOBAL_SHIFT_POSTED",
-            title: "New global shift posted",
-            message: `${shift.roleName} at ${shift.business} on ${new Date(shift.date).toISOString().slice(0, 10)} (${shift.startTime}-${shift.endTime})`,
-            link: "/worker/marketplace"
-          }))
+      if (shift.visibility === "GLOBAL" && shift.status === "OPEN") {
+        const employees = await prisma.user.findMany({
+          where: { role: "EMPLOYEE" },
+          select: { id: true, email: true, username: true }
         })
 
-        for (const emp of employees) {
-          sendEmail({
-            to: emp.email,
-            subject: "New global shift posted",
-            text: `A new global shift has been posted.\n\nRole: ${shift.roleName}\nBusiness: ${shift.business}\nDate: ${new Date(shift.date).toISOString().slice(0, 10)}\nTime: ${shift.startTime}-${shift.endTime}\n\nLog in to Shiftly to apply.`,
-            html: `
-              <h2>New global shift posted</h2>
-              <p>A new global shift is available.</p>
-              <ul>
-                <li><strong>Role:</strong> ${shift.roleName}</li>
-                <li><strong>Business:</strong> ${shift.business}</li>
-                <li><strong>Date:</strong> ${new Date(shift.date).toISOString().slice(0, 10)}</li>
-                <li><strong>Time:</strong> ${shift.startTime}-${shift.endTime}</li>
-              </ul>
-              <p>Log in to Shiftly to apply.</p>
-            `
-          }).catch(err => {
-            logger.error('Email send failed:', err.message)
+        if (employees.length > 0) {
+          await prisma.notification.createMany({
+            data: employees.map(emp => ({
+              userId: emp.id,
+              type: "GLOBAL_SHIFT_POSTED",
+              title: "New global shift posted",
+              message: `${shift.roleName} at ${shift.business} on ${new Date(shift.date).toISOString().slice(0, 10)} (${shift.startTime}-${shift.endTime})`,
+              link: "/worker/marketplace"
+            }))
           })
         }
       }
@@ -244,7 +226,7 @@ exports.updateShift = async (req, res) => {
     if (!existing) return res.status(404).json({ message: "Shift not found" });
     if (existing.managerId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
 
-    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status } = req.body;
+    const { business, roleName, date, startTime, endTime, pay, priority, workerId, status, location, notes, visibility } = req.body;
 
     const data = {};
 
