@@ -30,38 +30,50 @@
     <div v-for="(group, dateLabel) in filteredNotificationsByGroup" :key="dateLabel" class="notifications-group">
       <div class="group-label">{{ dateLabel }}</div>
       
-      <div 
-        v-for="notif in group" 
+      <div
+        v-for="notif in group"
         :key="notif.id"
         class="notification-card"
-        :class="{ 'unread': notif.isUnread, 'warning': notif.isWarning, 'pale': notif.isPale }"
+        :class="{ 'unread': notif.isUnread }"
       >
-        <div class="icon-wrapper" :class="notif.iconBg">
-          <template v-if="notif.type === 'shift-new'">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="14" x2="12" y2="14"></line><line x1="10" y1="12" x2="10" y2="16"></line></svg>
+        <div class="icon-wrapper" :class="iconBgClass(notif.type)">
+          <!-- Shift icons (available / assigned) -->
+          <template v-if="iconCategory(notif.type) === 'shift'">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
           </template>
-          <template v-else-if="notif.type === 'shift-swap-approved'">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          <!-- Application icons -->
+          <template v-else-if="iconCategory(notif.type) === 'application'">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
           </template>
-          <template v-else-if="notif.type === 'reminder'">
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          <!-- Swap icons -->
+          <template v-else-if="iconCategory(notif.type) === 'swap'">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
           </template>
-          <template v-else-if="notif.type === 'message'">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+          <!-- Time off icons -->
+          <template v-else-if="iconCategory(notif.type) === 'timeoff'">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
           </template>
-          <template v-else-if="notif.type === 'policy'">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          <!-- Sick leave icons -->
+          <template v-else-if="iconCategory(notif.type) === 'sick'">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+          </template>
+          <!-- Clock icons -->
+          <template v-else-if="iconCategory(notif.type) === 'clock'">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          </template>
+          <!-- Default -->
+          <template v-else>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           </template>
         </div>
         <div class="notification-content">
           <div class="header-row">
-            <h4>{{ notif.title }}</h4>
-            <span class="time">{{ notif.time }}</span>
+            <h4>{{ notif.message }}</h4>
+            <span class="time">{{ formatTime(notif.createdAt) }}</span>
           </div>
-          <p>{{ notif.message }}</p>
-          <div v-if="notif.hasActions" class="action-buttons">
-            <button class="btn btn-primary btn-sm" @click="handleClaimShift(notif)" :disabled="claimingId === notif.id">{{ claimingId === notif.id ? 'Claiming...' : 'Claim Shift' }}</button>
-            <button class="btn btn-outline btn-sm">View Details</button>
+          <div class="action-buttons">
+            <button v-if="notif.type === 'SHIFT_AVAILABLE'" class="btn btn-primary btn-sm" @click="handleClaimShift(notif)" :disabled="claimingId === notif.id">{{ claimingId === notif.id ? 'Claiming...' : 'Claim Shift' }}</button>
+            <button v-if="notif.actionUrl" class="btn btn-outline btn-sm" @click="handleViewDetails(notif)">View Details</button>
           </div>
         </div>
       </div>
@@ -83,7 +95,9 @@ import { useNotificationStore } from '../../stores/notificationStore'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { storeToRefs } from 'pinia'
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const notificationStore = useNotificationStore()
 const scheduleStore = useScheduleStore()
 
@@ -123,14 +137,73 @@ const handleClaimShift = async (notif) => {
   }
 }
 
+function handleViewDetails(notif) {
+  if (!notif.read) notificationStore.markAsRead(notif.id)
+  if (notif.actionUrl) {
+    router.push(notif.actionUrl)
+  }
+}
+
+/** Map backend notification type to an icon category for the template */
+function iconCategory(type) {
+  switch (type) {
+    case 'SHIFT_AVAILABLE':
+    case 'SHIFT_ASSIGNED':
+      return 'shift'
+    case 'APPLICATION':
+    case 'APPLICATION_REJECTED':
+      return 'application'
+    case 'SWAP_REQUEST':
+    case 'SWAP_ACCEPTED':
+    case 'SWAP_REJECTED':
+      return 'swap'
+    case 'TIME_OFF_REQUEST':
+    case 'TIME_OFF_RESPONSE':
+      return 'timeoff'
+    case 'SICK_LEAVE':
+    case 'SICK_ACKNOWLEDGED':
+      return 'sick'
+    case 'CLOCK_IN':
+    case 'CLOCK_OUT':
+      return 'clock'
+    default:
+      return 'default'
+  }
+}
+
+function formatTime(iso) {
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now - d
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'Just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}h ago`
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function iconBgClass(type) {
+  const cat = iconCategory(type)
+  switch (cat) {
+    case 'shift': return 'bg-blue'
+    case 'application': return 'bg-blue-pale'
+    case 'swap': return 'bg-green'
+    case 'timeoff': return 'bg-orange-pale'
+    case 'sick': return 'bg-orange-pale'
+    case 'clock': return 'bg-gray-pale'
+    default: return 'bg-gray-pale'
+  }
+}
+
 const filteredNotificationsByGroup = computed(() => {
   if (activeTab.value === 'All') return notificationsByGroup.value
-  
+
   const filtered = {}
   for (const [dateLabel, group] of Object.entries(notificationsByGroup.value)) {
     const matching = group.filter(n => {
       if (activeTab.value === 'Unread') return n.isUnread
-      if (activeTab.value === 'Archived') return false // Mock empty for archived
+      if (activeTab.value === 'Archived') return false
       return true
     })
     if (matching.length > 0) {
@@ -264,9 +337,6 @@ const filteredNotificationsByGroup = computed(() => {
   border-color: #DBEAFE;
 }
 
-.notification-card.pale {
-  opacity: 0.8;
-}
 
 .icon-wrapper {
   width: 48px;
@@ -307,16 +377,6 @@ const filteredNotificationsByGroup = computed(() => {
   color: #6B7280;
 }
 
-.notification-content p {
-  margin: 0 0 1rem 0;
-  font-size: 0.95rem;
-  color: #4B5563;
-  line-height: 1.5;
-}
-
-.notification-card:not(.unread) .notification-content p:last-child {
-  margin-bottom: 0;
-}
 
 .action-buttons {
   display: flex;

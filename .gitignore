@@ -7,3 +7,7 @@ node_modules/
 .env.local
 .env.*.local
 Frontend/dist/
+
+# Uploaded files (keep .gitkeep)
+Backend/uploads/*
+!Backend/uploads/.gitkeep

@@ -63,18 +63,6 @@ const handleClear = () => {
 onMounted(() => {
   staffStore.fetchEmployees().catch(() => {})
 })
-const filteredStaff = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return staffStore.staffList
-  return staffStore.staffList.filter(s =>
-    (s.name || '').toLowerCase().includes(q) ||
-    (s.email || '').toLowerCase().includes(q)
-  )
-})
-
-function openProfile(id) {
-  router.push(`/manager/staff/${id}`)
-}
 </script>
 
 <template>
@@ -138,10 +126,7 @@ function openProfile(id) {
                 <h3>{{ staff.name }}</h3>
                 <p>{{ staff.role }}</p>
               </div>
-
-      <div v-if="staffStore.loading">Loading staff…</div>
-      <div v-else-if="staffStore.error">{{ staffStore.error }}</div>
-      <div v-else-if="filteredStaff.length === 0">No employees found.</div>
+            </div>
 
             <div class="card-body">
               <div class="detail-row">
@@ -177,8 +162,7 @@ function openProfile(id) {
             <button class="page-btn nav-arr" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
           </div>
         </div>
-      </div>
-    </div>
+
   </ManagerLayout>
 
   <div v-if="showInviteModal" class="modal-overlay" @click.self="showInviteModal = false">

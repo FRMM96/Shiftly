@@ -96,9 +96,10 @@ const handleLogout = () => {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
           </button>
         </div>
+      </div>
 
       <div class="settings-grid">
-        
+
         <div class="card settings-card">
           <div class="card-title">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0052CC" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
@@ -136,23 +137,6 @@ const handleLogout = () => {
           </div>
         </div>
 
-        <section class="invite-box">
-          <div>
-            <h2>Company Invite Code</h2>
-            <p>Share this code with employees or additional managers so they join the correct company.</p>
-          </div>
-          <div class="invite-row">
-            <div class="invite-code">{{ company.inviteCode || 'No invite code found' }}</div>
-            <BaseButton variant="primary" size="sm" @click="copyInviteCode" :disabled="!company.inviteCode">
-              {{ copied ? 'Copied!' : 'Copy code' }}
-            </BaseButton>
-          </div>
-        </section>
-
-        <div class="actions">
-          <BaseButton variant="secondary" outline @click="router.push('/manager/shift')">Create Shift</BaseButton>
-          <BaseButton variant="ghost" @click="logout">Log out</BaseButton>
-        </div>
       </div>
 
       <div class="actions-grid">
