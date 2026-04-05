@@ -74,29 +74,29 @@ model Company {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  username     String   @unique
-  passwordHash String
-  role         Role     @default(EMPLOYEE)
-  phone        String?
-  department   String?
-  location     String?
+  id               String  @id @default(cuid())
+  email            String  @unique
+  username         String  @unique
+  passwordHash     String
+  role             Role    @default(EMPLOYEE)
+  phone            String?
+  department       String?
+  location         String?
   emergencyContact String?
-  onboarded    Boolean  @default(false)
+  onboarded        Boolean @default(false)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   // Relations
-  managedShifts       Shift[]            @relation("ManagerShifts")
-  assignedShifts      Shift[]            @relation("WorkerShifts")
-  applications        ShiftApplication[]
-  notifications       Notification[]
-  timeOffRequests     TimeOffRequest[]
-  sickLeaves          SickLeave[]
-  clockEvents         ClockEvent[]
-  swapRequestsMade    ShiftSwapRequest[] @relation("SwapRequester")
+  managedShifts        Shift[]            @relation("ManagerShifts")
+  assignedShifts       Shift[]            @relation("WorkerShifts")
+  applications         ShiftApplication[]
+  notifications        Notification[]
+  timeOffRequests      TimeOffRequest[]
+  sickLeaves           SickLeave[]
+  clockEvents          ClockEvent[]
+  swapRequestsMade     ShiftSwapRequest[] @relation("SwapRequester")
   swapRequestsReceived ShiftSwapRequest[] @relation("SwapTarget")
   documents            Document[]
 
@@ -108,7 +108,7 @@ model User {
 }
 
 model Shift {
-  id        String      @id @default(cuid())
+  id        String        @id @default(cuid())
   business  String
   roleName  String
   date      DateTime
@@ -123,10 +123,10 @@ model Shift {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   managerId String
-  manager   User @relation("ManagerShifts", fields: [managerId], references: [id])
+  manager   User   @relation("ManagerShifts", fields: [managerId], references: [id])
 
   workerId String?
-  worker   User? @relation("WorkerShifts", fields: [workerId], references: [id])
+  worker   User?   @relation("WorkerShifts", fields: [workerId], references: [id])
 
   applications ShiftApplication[]
 
@@ -155,16 +155,16 @@ model ShiftApplication {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  type      String   // e.g. "APPLICATION_RECEIVED", "SHIFT_ASSIGNED", "CLOCK_IN"
+  id        String  @id @default(cuid())
+  type      String // e.g. "APPLICATION_RECEIVED", "SHIFT_ASSIGNED", "CLOCK_IN"
   message   String
-  read      Boolean  @default(false)
+  read      Boolean @default(false)
   actionUrl String?
 
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
 
@@ -182,9 +182,9 @@ model TimeOffRequest {
   status    RequestStatus @default(PENDING)
 
   userId    String
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   companyId String
-  company   Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -201,11 +201,11 @@ model SickLeave {
   status       RequestStatus @default(PENDING)
   acknowledged Boolean       @default(false)
 
-  shiftId String?
-  userId  String
-  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shiftId   String?
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   companyId String
-  company   Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
 
@@ -220,12 +220,12 @@ model ClockEvent {
   location  String?
 
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   shiftId   String
   companyId String
-  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([shiftId])
@@ -233,12 +233,12 @@ model ClockEvent {
 }
 
 model Document {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   name        String
   key         String
   contentType String
   size        Int
-  category    String   @default("General")
+  category    String @default("General")
 
   uploadedById String
   uploadedBy   User    @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
@@ -253,19 +253,19 @@ model Document {
 }
 
 model ShiftSwapRequest {
-  id               String     @id @default(cuid())
-  status           SwapStatus @default(PENDING)
+  id     String     @id @default(cuid())
+  status SwapStatus @default(PENDING)
 
   requesterId      String
-  requester        User       @relation("SwapRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  requester        User   @relation("SwapRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   requesterShiftId String
 
-  targetWorkerId   String
-  targetWorker     User       @relation("SwapTarget", fields: [targetWorkerId], references: [id], onDelete: Cascade)
-  targetShiftId    String
+  targetWorkerId String
+  targetWorker   User   @relation("SwapTarget", fields: [targetWorkerId], references: [id], onDelete: Cascade)
+  targetShiftId  String
 
-  companyId        String
-  company          Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

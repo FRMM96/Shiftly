@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require('../db/prisma')
 const { notifyManagers } = require('../helpers/notification')
 
@@ -42,7 +43,7 @@ exports.clockInOut = async (req, res) => {
 
     return res.status(201).json({ clockEvent })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -64,7 +65,7 @@ exports.getTodayStatus = async (req, res) => {
 
     return res.json({ events })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -87,7 +88,7 @@ exports.getShiftClockEvents = async (req, res) => {
 
     return res.json({ events })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }

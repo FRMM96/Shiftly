@@ -23,6 +23,9 @@ ADD COLUMN     "location" TEXT,
 ADD COLUMN     "onboarded" BOOLEAN NOT NULL DEFAULT false,
 ADD COLUMN     "phone" TEXT;
 
+-- Drop existing Notification table if created by previous migration
+DROP TABLE IF EXISTS "Notification" CASCADE;
+
 -- CreateTable
 CREATE TABLE "Notification" (
     "id" TEXT NOT NULL,

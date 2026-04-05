@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require('../db/prisma')
 const bcrypt = require('bcryptjs')
 
@@ -32,7 +33,7 @@ exports.updateProfile = async (req, res) => {
     if (err.code === 'P2002') {
       return res.status(409).json({ message: 'Username already taken' })
     }
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -63,7 +64,7 @@ exports.changePassword = async (req, res) => {
 
     return res.json({ ok: true })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }

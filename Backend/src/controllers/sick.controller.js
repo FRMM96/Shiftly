@@ -1,3 +1,4 @@
+const logger = require("../lib/logger")
 const prisma = require('../db/prisma')
 const { createNotification, notifyManagers } = require('../helpers/notification')
 
@@ -37,7 +38,7 @@ exports.reportSick = async (req, res) => {
 
     return res.status(201).json({ sickLeave })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -60,7 +61,7 @@ exports.listSickLeaves = async (req, res) => {
 
     return res.json({ sickLeaves })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }
@@ -88,7 +89,7 @@ exports.acknowledgeSick = async (req, res) => {
 
     return res.json({ sickLeave })
   } catch (err) {
-    console.error(err)
+    logger.error(err)
     return res.status(500).json({ message: 'Server error' })
   }
 }

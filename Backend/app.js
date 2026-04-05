@@ -66,5 +66,11 @@ app.use("/api/documents", documentRoutes);
 // Helpful: basic 404
 app.use((req, res) => res.status(404).json({ message: "Not found" }));
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
+module.exports = app;
+
+// Start server only when run directly (not when imported by tests)
+if (require.main === module) {
+  const logger = require("./src/lib/logger");
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => logger.info(`API running on http://localhost:${PORT}`));
+}
