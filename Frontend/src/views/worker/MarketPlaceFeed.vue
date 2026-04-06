@@ -106,18 +106,7 @@ const handleApply = async (shift) => {
   }
 }
 
-onMounted(loadMarketplace)
 
-const filteredShifts = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return shiftStore.marketplaceShifts
-
-  return shiftStore.marketplaceShifts.filter(shift =>
-    (shift.roleName || shift.role || '').toLowerCase().includes(q) ||
-    (shift.business || '').toLowerCase().includes(q) ||
-    (shift.location || '').toLowerCase().includes(q)
-  )
-})
 </script>
 
 <template>
