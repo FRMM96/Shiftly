@@ -270,12 +270,18 @@ export const useShiftStore = defineStore('shifts', () => {
   }
 
   async function fetchMyApplications() {
-    const res = await apiFetch('/api/marketplace/applications/me')
-    applications.value = (res.applications || []).map(app => ({
-      ...app,
-      shift: app.shift ? normalizeShift(app.shift) : null
-    }))
-    return applications.value
+    loading.value = true
+    error.value = null
+    try {
+      const res = await api.get('/marketplace/applications/me')
+      // Keep shifts in sync so myApplications computed works
+      return res.data.applications || []
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'Failed to fetch my applications'
+      throw new Error(error.value)
+    } finally {
+      loading.value = false
+    }
   }
 
   return {
@@ -284,6 +290,7 @@ export const useShiftStore = defineStore('shifts', () => {
     error,
     openShifts,
     pendingApplicants,
+    myApplications,
     getShiftById,
     fetchManagerShifts,
     createShift,
@@ -294,6 +301,7 @@ export const useShiftStore = defineStore('shifts', () => {
     applyToShift,
     fetchMyShifts,
     fetchApplicants,
+    fetchMyApplications,
     assignApplicant,
     approveApplicant,
     rejectApplicant
