@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '../services/api'
+import { cacheSchedule, getCachedSchedule } from '../services/offlineCache'
 
 export const useScheduleStore = defineStore('schedule', () => {
   // State: worker's assigned shifts, normalized for calendar UI
@@ -31,8 +32,19 @@ export const useScheduleStore = defineStore('schedule', () => {
     try {
       const response = await api.get('/shifts/me')
       mySchedule.value = (response.data.shifts || []).map(normalizeShiftToScheduleItem)
+      // Cache for offline access
+      cacheSchedule(mySchedule.value).catch(() => {})
       return mySchedule.value
     } catch (e) {
+      // Offline fallback: load from cache if network fails
+      if (!e.response) {
+        const cached = await getCachedSchedule()
+        if (cached.length) {
+          mySchedule.value = cached
+          error.value = 'Showing cached data (offline)'
+          return mySchedule.value
+        }
+      }
       error.value = e.response?.data?.message || e.message || 'Failed to load schedule'
       mySchedule.value = []
       throw e

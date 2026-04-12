@@ -11,6 +11,7 @@ import { useUserStore } from '../../stores/userStore'
 import { useWorkerStore } from '../../stores/workerStore'
 import { useNotificationStore } from '../../stores/notificationStore'
 import api from '../../services/api'
+import { getCurrentLocation } from '../../services/geolocationService'
 
 const notificationStore = useNotificationStore()
 const router = useRouter()
@@ -57,9 +58,14 @@ const handleClockIn = async () => {
   if (!nextShift.value) return
   clockingIn.value = true
   try {
-    await api.post('/clock', { shiftId: nextShift.value.id, type: 'CLOCK_IN' })
+    const location = await getCurrentLocation()
+    const payload = { shiftId: nextShift.value.id, type: 'CLOCK_IN' }
+    if (location) payload.location = location
+    await api.post('/clock', payload)
     modalSuccess.value = true
-    modalMessage.value = 'You have clocked in successfully!'
+    modalMessage.value = location
+      ? 'You have clocked in successfully! Location recorded.'
+      : 'You have clocked in successfully!'
   } catch (e) {
     modalSuccess.value = false
     modalMessage.value = e?.response?.data?.message || 'Failed to clock in.'

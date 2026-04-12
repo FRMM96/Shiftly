@@ -1,12 +1,21 @@
 const prisma = require('../db/prisma')
+const { getIO } = require('../socket')
 
 /**
- * Create a notification for a user.
+ * Create a notification for a user and push it via WebSocket.
  */
 async function createNotification(userId, companyId, type, message, actionUrl = null) {
-  return prisma.notification.create({
+  const notification = await prisma.notification.create({
     data: { userId, companyId, type, message, actionUrl }
   })
+
+  // Push to the user's socket room in real time
+  const io = getIO()
+  if (io) {
+    io.to(`user:${userId}`).emit('notification:new', notification)
+  }
+
+  return notification
 }
 
 /**

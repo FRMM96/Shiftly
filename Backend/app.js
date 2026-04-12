@@ -70,7 +70,12 @@ module.exports = app;
 
 // Start server only when run directly (not when imported by tests)
 if (require.main === module) {
+  const http = require("http");
   const logger = require("./src/lib/logger");
+  const { initSocket } = require("./src/socket");
+
   const PORT = process.env.PORT || 4000;
-  app.listen(PORT, () => logger.info(`API running on http://localhost:${PORT}`));
+  const server = http.createServer(app);
+  initSocket(server);
+  server.listen(PORT, () => logger.info(`API running on http://localhost:${PORT}`));
 }

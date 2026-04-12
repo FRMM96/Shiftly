@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../services/api'
+import { connectSocket, disconnectSocket } from '../services/socketService'
+import { cacheUser, getCachedUser, clearCache } from '../services/offlineCache'
 
 export const useUserStore = defineStore('user', () => {
 
@@ -21,6 +23,8 @@ export const useUserStore = defineStore('user', () => {
     token.value = res.data.token
     localStorage.setItem('auth_token', res.data.token)
     user.value = res.data.user
+    cacheUser(res.data.user).catch(() => {})
+    connectSocket()
     return res.data
   }
 
@@ -29,17 +33,35 @@ export const useUserStore = defineStore('user', () => {
     token.value = res.data.token
     localStorage.setItem('auth_token', res.data.token)
     user.value = res.data.user
+    cacheUser(res.data.user).catch(() => {})
+    connectSocket()
     return res.data
   }
 
   async function fetchMe() {
     if (!token.value) return null
-    const res = await api.get('/auth/me')
-    user.value = res.data.user
-    return res.data.user
+    try {
+      const res = await api.get('/auth/me')
+      user.value = res.data.user
+      cacheUser(res.data.user).catch(() => {})
+      connectSocket()
+      return res.data.user
+    } catch (e) {
+      // Offline fallback: restore cached user context
+      if (!e.response) {
+        const cached = await getCachedUser()
+        if (cached) {
+          user.value = cached
+          return cached
+        }
+      }
+      throw e
+    }
   }
 
   function logout() {
+    disconnectSocket()
+    clearCache().catch(() => {})
     token.value = null
     user.value = null
     localStorage.removeItem('auth_token')
