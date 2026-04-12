@@ -84,7 +84,7 @@ const handleSignUp = async () => {
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
           <path d="M12 2L2 12L12 22L22 12L12 2Z" fill="#2563EB"/>
         </svg>
-        <span class="brand-name">Radix</span>
+        <span class="brand-name">Baudix</span>
       </div>
       <div class="header-actions">
         <span class="has-account">Already have an account?</span>
@@ -94,7 +94,7 @@ const handleSignUp = async () => {
 
     <main class="main-content">
       <div class="content-left">
-        <h1 class="headline">Build the future<br><span>with Radix.</span></h1>
+        <h1 class="headline">Build the future<br><span>with Baudix.</span></h1>
         <p class="subtitle">Join thousands of developers and creators building the next generation of digital experiences.</p>
 
         <ul class="feature-list">
@@ -230,7 +230,7 @@ const handleSignUp = async () => {
     </main>
 
     <footer class="footer">
-      <p class="copyright">© 2024 Radix Technologies Inc. All rights reserved.</p>
+      <p class="copyright">© 2024 Baudix Technologies Inc. All rights reserved.</p>
       <div class="footer-links">
         <a href="#">Privacy</a>
         <a href="#">Terms</a>
@@ -308,7 +308,7 @@ const handleSignUp = async () => {
 }
 
 .headline span {
-  color: #0047FF; /* Radix bright blue */
+  color: #0047FF; /* Baudix bright blue */
 }
 
 .subtitle {

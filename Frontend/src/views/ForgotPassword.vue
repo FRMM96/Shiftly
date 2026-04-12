@@ -61,7 +61,7 @@ const resendEmail = () => {
 
     <footer class="page-footer">
       <p class="copyright">
-        © 2024 Radix Technologies Inc. All rights reserved.
+        © 2024 Baudix Technologies Inc. All rights reserved.
       </p>
     </footer>
   </div>

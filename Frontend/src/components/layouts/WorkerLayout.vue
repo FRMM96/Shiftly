@@ -23,7 +23,7 @@ const user = computed(() => ({
         <svg class="brand-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 2L2 12L12 22L22 12L12 2Z" fill="#2563EB"/>
         </svg>
-        <span class="brand-text">Radix Worker</span>
+        <span class="brand-text">Baudix Worker</span>
       </div>
       
       <nav class="nav-links">
@@ -89,7 +89,7 @@ const user = computed(() => ({
     <footer class="app-footer">
       <div class="footer-left">
         <div class="help-icon">?</div>
-        <span>Need help with your shifts? <a href="mailto:support@radix.app" class="support-link">Contact Support</a></span>
+        <span>Need help with your shifts? <a href="mailto:support@baudix.app" class="support-link">Contact Support</a></span>
       </div>
       <div class="footer-right">
         <span class="footer-static-link">Terms of Service</span>
