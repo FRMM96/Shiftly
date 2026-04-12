@@ -1,5 +1,6 @@
 import axios from 'axios';
 import router from '../router';
+import { useToastStore } from '../stores/toastStore';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api',
@@ -8,7 +9,6 @@ const api = axios.create({
 // Request Interceptor
 api.interceptors.request.use(
   (config) => {
-    // Check localStorage for auth token
     const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
@@ -22,17 +22,25 @@ api.interceptors.request.use(
 
 // Response Interceptor
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   (error) => {
-    // If a request returns a 401 Unauthorized error
-    if (error.response && error.response.status === 401) {
-      // Clear token
-      localStorage.removeItem('auth_token');
-      // Force redirect to login
-      router.push('/login');
+    // Network error (no response at all — offline or server unreachable)
+    if (!error.response) {
+      const toast = useToastStore();
+      toast.show('Network error — please check your connection.', 'warning');
+      return Promise.reject(error);
     }
+
+    const { status } = error.response;
+
+    if (status === 401) {
+      localStorage.removeItem('auth_token');
+      router.push('/login');
+    } else if (status >= 500) {
+      const toast = useToastStore();
+      toast.show('Something went wrong on our end. Please try again.', 'error');
+    }
+
     return Promise.reject(error);
   }
 );
