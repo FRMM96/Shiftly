@@ -10,7 +10,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
           <path d="M12 2L2 12L12 22L22 12L12 2Z" fill="#2563EB"/>
         </svg>
-        <span class="logo-text">Radix</span>
+        <span class="logo-text">Baudix</span>
       </div>
       <div class="user-info">
         <span class="help-link">Need help?</span>
@@ -21,7 +21,7 @@
     </header>
 
     <main class="main-content">
-      <h1 class="page-title">Welcome to Radix</h1>
+      <h1 class="page-title">Welcome to Baudix</h1>
       <p class="page-subtitle">Choose how you'd like to use the platform to get started. You can always change this later.</p>
 
       <div class="cards-wrapper">
@@ -67,7 +67,7 @@
         <a href="#" class="footer-link">PRIVACY POLICY</a>
         <a href="#" class="footer-link">TERMS OF SERVICE</a>
       </div>
-      <p class="copyright-text">© 2024 Radix Platform. All rights reserved.</p>
+      <p class="copyright-text">© 2024 Baudix Platform. All rights reserved.</p>
     </footer>
   </div>
 </template>

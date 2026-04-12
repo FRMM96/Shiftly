@@ -1,4 +1,4 @@
-package com.radix.app;
+package com.baudix.app;
 
 import com.getcapacitor.BridgeActivity;
 

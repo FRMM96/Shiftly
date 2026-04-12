@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Radix</string>
-    <string name="title_activity_main">Radix</string>
-    <string name="package_name">com.radix.app</string>
-    <string name="custom_url_scheme">com.radix.app</string>
+    <string name="app_name">Baudix</string>
+    <string name="title_activity_main">Baudix</string>
+    <string name="package_name">com.baudix.app</string>
+    <string name="custom_url_scheme">com.baudix.app</string>
 </resources>

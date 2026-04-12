@@ -20,7 +20,7 @@ const goToSignup = () => {
         <div class="brand-icon">
           <!-- logo -->
         </div>
-        <h2>Radix</h2>
+        <h2>Baudix</h2>
       </div>
       <div class="nav-actions">
         <button class="btn-text md-only" @click="goToLogin">Log In</button>
@@ -41,7 +41,7 @@ const goToSignup = () => {
             The heartbeat of your <span class="highlight-text">workforce</span>
           </h1>
           <p class="hero-subtitle">
-            Empower your team with real-time insights, automated scheduling, and seamless communication. Radix is the all-in-one platform built for modern scale.
+            Empower your team with real-time insights, automated scheduling, and seamless communication. Baudix is the all-in-one platform built for modern scale.
           </p>
           <div class="hero-buttons">
             <button class="btn-primary-large" @click="goToSignup">Start Free Trial</button>
@@ -102,7 +102,7 @@ const goToSignup = () => {
         <div class="cta-glow-bottom-left"></div>
         <div class="cta-container">
           <h2 class="cta-title">Ready to transform your workforce?</h2>
-          <p class="cta-subtitle">Join 2,500+ companies using Radix to optimize their daily operations and scale their impact.</p>
+          <p class="cta-subtitle">Join 2,500+ companies using Baudix to optimize their daily operations and scale their impact.</p>
           <button class="btn-cta" @click="goToSignup">Get Started Now</button>
         </div>
       </section>
@@ -114,7 +114,7 @@ const goToSignup = () => {
         <div class="footer-brand-col">
           <div class="footer-brand">
             <span class="material-symbols-outlined">adjust</span>
-            <h2>Radix</h2>
+            <h2>Baudix</h2>
           </div>
           <p class="footer-description">Leading the future of workforce optimization. Scalable, secure, and built for people.</p>
         </div>
@@ -142,7 +142,7 @@ const goToSignup = () => {
       </div>
       
       <div class="footer-bottom">
-        <p class="copyright">© 2026 Radix Technologies Inc. All rights reserved.</p>
+        <p class="copyright">© 2026 Baudix Technologies Inc. All rights reserved.</p>
         <div class="social-links">
           <a href="#"><span class="material-symbols-outlined">share</span></a>
           <a href="#"><span class="material-symbols-outlined">public</span></a>

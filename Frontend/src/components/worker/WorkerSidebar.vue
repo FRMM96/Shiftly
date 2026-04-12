@@ -8,7 +8,7 @@ const isTabActive = (tab) => route.path === '/worker' && (route.query.tab === ta
 
 <template>
     <aside class="sidebar">
-        <div class="logo">Radix <span class="badge">Worker</span></div>
+        <div class="logo">Baudix <span class="badge">Worker</span></div>
 
         <nav class="nav-links">
             <router-link to="/worker?tab=schedule" class="nav-item" :class="{ active: isTabActive('schedule') }">

@@ -7,13 +7,13 @@
           <div class="brand-logo">
             <span class="material-symbols-outlined">adjust</span>
           </div>
-          <h2>Radix</h2>
+          <h2>Baudix</h2>
         </div>
         
         <div class="login-content">
           <div class="login-title-area">
             <h1>Welcome back</h1>
-            <p>Log in to your Radix account to continue your work.</p>
+            <p>Log in to your Baudix account to continue your work.</p>
           </div>
           
           <form @submit.prevent="handleLogin" class="login-form">
@@ -97,7 +97,7 @@
           </div>
           <h2>Secure Infrastructure for Modern Teams</h2>
           <p class="marketing-desc">
-            Radix provides enterprise-grade security and blazing-fast performance. Manage your entire ecosystem with confidence.
+            Baudix provides enterprise-grade security and blazing-fast performance. Manage your entire ecosystem with confidence.
           </p>
           
           <div class="marketing-stats">
@@ -112,7 +112,7 @@
           </div>
           
           <div class="marketing-testimonial">
-            <p class="testimonial-quote">"The security features on Radix are unparalleled. Switching was the best decision for our dev team."</p>
+            <p class="testimonial-quote">"The security features on Baudix are unparalleled. Switching was the best decision for our dev team."</p>
             <div class="testimonial-author">
               <div class="author-avatar">
                 <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDg6oD6SuAhuJxsQRc3j6xjAV7-HcftLlI_rHG1Jf17PJ5hCtnvT3ocG7fBbGrFA5_duWoCBAYGr8-w4KQjwEdUCc7nuuhDHFYA1vUblW7Xa59U3k4ur0rAYJ2pDb591Yvt1pupJ9UBHGUcTc2fXA52QpBWSQFCCBizvoFMpCbw0FMmxoUu-rLoYad4Gsqj6KL4ZBMXXh6OuLl3sIQ4pDiUsYnRMz8yqEtkijZ0G4I0tS8RDzutRIkxOodJoj26zFJVz1_fHhwyea0" alt="Sarah Jenkins" />

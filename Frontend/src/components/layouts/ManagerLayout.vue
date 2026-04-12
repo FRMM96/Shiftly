@@ -31,7 +31,7 @@ const currentUser = computed(() => ({
     <aside class="sidebar">
       <div class="sidebar-header">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#0052CC"/><circle cx="16" cy="16" r="6" fill="white"/><circle cx="8" cy="8" r="2" fill="white"/><circle cx="24" cy="8" r="2" fill="white"/><circle cx="8" cy="24" r="2" fill="white"/><circle cx="24" cy="24" r="2" fill="white"/><line x1="9" y1="9" x2="15" y2="15" stroke="white" stroke-width="2"/></svg>
-        <h2>Radix Manager</h2>
+        <h2>Baudix Manager</h2>
       </div>
 
       <div class="menu-label">MAIN MENU</div>
