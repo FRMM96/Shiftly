@@ -26,16 +26,16 @@ The application has achieved substantial completion of its primary phases, opera
 
 ### Known Gaps & Technical Debt
 
-| Gap | Severity | Details |
-|-----|----------|---------|
-| JWT_SECRET placeholder | Critical | `.env` still contains `"super_secret_change_me"` — must replace before any deployment |
-| Minimal test coverage | High | Only 2 test files; no tests for clock, swaps, time off, sick leave, analytics, or frontend components |
-| Auth-only rate limiting | Medium | Rate limiter only covers `/api/auth`; all other endpoints are unprotected |
-| S3 storage not implemented | Medium | `storageService.js` only supports local disk; S3 branch is a comment, not code |
-| No push notifications | Medium | FCM/Firebase not set up; only in-app WebSocket notifications exist |
-| Capacitor branding mismatch | Low | Config uses `com.radix.app` / `Radix` — must update to `com.baudix.app` / `Baudix` |
-| No audit logging | Low | No trail for shift approvals, denials, or sensitive operations |
-| No admin panel | Low | No admin-specific routes or views; only BOSS (manager) and EMPLOYEE roles exist |
+| Gap                         | Severity | Details                                                                                               |
+| --------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| JWT_SECRET placeholder      | Critical | `.env` still contains `"super_secret_change_me"` — must replace before any deployment                 |
+| Minimal test coverage       | High     | Only 2 test files; no tests for clock, swaps, time off, sick leave, analytics, or frontend components |
+| Auth-only rate limiting     | Medium   | Rate limiter only covers `/api/auth`; all other endpoints are unprotected                             |
+| S3 storage not implemented  | Medium   | `storageService.js` only supports local disk; S3 branch is a comment, not code                        |
+| No push notifications       | Medium   | FCM/Firebase not set up; only in-app WebSocket notifications exist                                    |
+| Capacitor branding mismatch | Low      | Config uses `com.radix.app` / `Radix` — must update to `com.baudix.app` / `Baudix`                    |
+| No audit logging            | Low      | No trail for shift approvals, denials, or sensitive operations                                        |
+| No admin panel              | Low      | No admin-specific routes or views; only BOSS (manager) and EMPLOYEE roles exist                       |
 
 ---
 
@@ -44,15 +44,19 @@ The application has achieved substantial completion of its primary phases, opera
 See `next_steps.md` for the detailed, actionable checklist. Below is the strategic overview.
 
 ### Phase A: Branding & Identity
+
 Rename from Radix to Baudix across the entire codebase — Capacitor config, page titles, meta tags, and any hardcoded references.
 
 ### Phase B: Pre-Launch Hardening
+
 Close the gaps identified above before any deployment: replace JWT_SECRET, expand test coverage across all major flows, extend rate limiting globally, implement the S3 storage provider toggle, and run a full Docker Compose smoke test.
 
 ### Phase C: Push Notifications
+
 Complete the remaining mobile work from the original Phase 6 — Firebase/FCM setup, `DeviceToken` model, device registration endpoint, and native push dispatch.
 
 ### Phase 8: Cloud Infrastructure Provisioning
+
 > **Gate:** Only after Phases A, B, and C are complete and the local stack passes all checks.
 
 - **Database:** Migrate local PostgreSQL to a managed provider (Supabase or Neon).
@@ -62,19 +66,23 @@ Complete the remaining mobile work from the original Phase 6 — Firebase/FCM se
 - **CD Pipeline:** Extend GitHub Actions CI with auto-deploy on merge to `main`.
 
 ### Phase 9: Enterprise & Payroll Integrations
+
 - **Payroll Exporting:** Export aggregated time-and-attendance data (ClockEvents) as CSV/PDF compatible with Gusto, ADP, or Paychex.
 - **SSO Authentication:** SAML / OAuth support for Enterprise Single Sign-On (Microsoft Entra, Google Workspace).
 - **Email Notifications:** Wire the existing `mailer.js` into key workflows (application received, approved/rejected, swap requests, time off decisions). This is a quick win since the infrastructure already exists.
 
 ### Phase 10: Advanced Smart Scheduling
+
 - **Smart Matching:** Auto-suggest workers based on attendance rates, reliability scores, and historical shift data.
 - **Auto-Approval Rules:** Managers set thresholds to auto-approve low-priority shifts, reducing application queue bottlenecks.
 
 ### Phase 11: Real-Device Mobile App Release
+
 - **Push Notifications:** Depends on Phase C being complete.
 - **App Store Submission:** Generate iOS and Android native builds from the Capacitor project (branded as Baudix) for App Store and Google Play review.
 
 ### Phase 12: Platform Maturity
+
 - **Audit Logging:** Record a trail for approvals, denials, modifications, and sensitive actions.
 - **Admin Panel:** Admin-specific routes and views for company/user management and system configuration.
 - **Bulk Operations:** Bulk shift creation (recurring schedules) and bulk application approval.

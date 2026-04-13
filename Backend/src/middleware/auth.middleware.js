@@ -22,6 +22,7 @@ async function requireAuth(req, res, next) {
     req.user = user
     next()
   } catch (e) {
+    console.error('[requireAuth Error]', e)
     return res.status(401).json({ message: 'Not authenticated' })
   }
 }

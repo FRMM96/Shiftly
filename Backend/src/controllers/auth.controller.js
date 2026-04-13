@@ -7,7 +7,7 @@ const MAX_BOSSES_PER_COMPANY = 3
 
 function signToken(user) {
   return jwt.sign(
-    { userId: user.id, role: user.role },
+    { userId: user.id, role: user.role, companyId: user.companyId },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   )
@@ -38,6 +38,7 @@ async function buildSafeUser(userId) {
       username: true,
       role: true,
       companyId: true,
+      onboarded: true,
       createdAt: true,
       company: {
         select: {
@@ -64,6 +65,7 @@ async function buildSafeUser(userId) {
     username: user.username,
     role: user.role,
     companyId: user.companyId,
+    onboarded: user.onboarded,
     createdAt: user.createdAt,
     company: user.company
       ? {
@@ -169,8 +171,15 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: 'emailOrUsername and password are required' })
     }
 
+    const identifier = String(emailOrUsername).trim()
+
     const user = await prisma.user.findFirst({
-      where: { OR: [{ email: emailOrUsername }, { username: emailOrUsername }] }
+      where: {
+        OR: [
+          { email: { equals: identifier, mode: 'insensitive' } },
+          { username: { equals: identifier, mode: 'insensitive' } }
+        ]
+      }
     })
 
     if (!user) return res.status(401).json({ message: 'Invalid credentials' })
